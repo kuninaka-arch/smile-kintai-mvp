@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.card {
+  @apply rounded-2xl bg-white shadow-sm border border-slate-100;
+}
+
+.btn {
+  @apply rounded-xl px-4 py-3 font-bold transition active:scale-[0.99];
+}

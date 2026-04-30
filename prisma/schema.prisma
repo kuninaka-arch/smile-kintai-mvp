@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum AttendanceType {
+  CLOCK_IN
+  CLOCK_OUT
+  BREAK_START
+  BREAK_END
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  users     User[]
+  departments Department[]
+  employmentTypes EmploymentType[]
+  roleMasters RoleMaster[]
+  workPatterns WorkPattern[]
+  shifts    Shift[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id            String          @id @default(cuid())
+  companyId     String
+  company       Company         @relation(fields: [companyId], references: [id])
+  name          String
+  email         String          @unique
+  passwordHash  String
+  role          Role            @default(EMPLOYEE)
+  department    String?
+  departmentId   String?
+  departmentMaster Department? @relation(fields: [departmentId], references: [id])
+  employmentTypeId String?
+  employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
+  roleMasterId  String?
+  roleMaster    RoleMaster? @relation(fields: [roleMasterId], references: [id])
+  attendanceLogs AttendanceLog[]
+  shifts        Shift[]
+  paidLeaves    PaidLeave[]
+  correctionRequests AttendanceCorrectionRequest[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model AttendanceLog {
+  id        String         @id @default(cuid())
+  companyId String
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  type      AttendanceType
+  stampedAt DateTime       @default(now())
+  latitude  Float?
+  longitude Float?
+  note      String?
+  createdAt DateTime       @default(now())
+
+  @@index([companyId, userId, stampedAt])
+}
+
+model Shift {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  workDate  DateTime
+  startTime String
+  endTime   String
+  breakMinutes Int @default(60)
+  patternCode String?
+  workPatternId String?
+  workPattern WorkPattern? @relation(fields: [workPatternId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, userId, workDate])
+}
+
+model PaidLeave {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  grantedDays Float  @default(0)
+  usedDays    Float  @default(0)
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId, userId])
+}
+
+
+enum CorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AttendanceCorrectionRequest {
+  id             String           @id @default(cuid())
+  companyId      String
+  userId         String
+  user           User             @relation(fields: [userId], references: [id])
+  targetDate     DateTime
+  requestedType  AttendanceType
+  requestedAt    DateTime
+  reason         String
+  status         CorrectionStatus @default(PENDING)
+  adminComment   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([companyId, userId, targetDate])
+}
+
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  code      String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, sortOrder])
+}
+
+model EmploymentType {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  code      String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, sortOrder])
+}
+
+model RoleMaster {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  code        String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, sortOrder])
+}
+
+
+model WorkPattern {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  code         String
+  name         String
+  startTime    String
+  endTime      String
+  breakMinutes Int      @default(60)
+  colorClass   String   @default("bg-emerald-400 text-slate-900")
+  isHoliday    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  shifts       Shift[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, sortOrder])
+}
