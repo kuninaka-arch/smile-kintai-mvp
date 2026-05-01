@@ -48,6 +48,38 @@ function actualWorkMinutes(logs: Array<{ type: string; stampedAt: Date }>) {
   return Math.max(0, Math.round(total));
 }
 
+async function getShiftUsers(companyId: string) {
+  try {
+    return await prisma.user.findMany({
+      where: { companyId },
+      select: {
+        id: true,
+        name: true,
+        department: true,
+        createdAt: true,
+        paidLeaves: {
+          select: { usedDays: true },
+          take: 1
+        }
+      },
+      orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+    });
+  } catch {
+    const users = await prisma.user.findMany({
+      where: { companyId },
+      select: {
+        id: true,
+        name: true,
+        department: true,
+        createdAt: true
+      },
+      orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+    });
+
+    return users.map((user) => ({ ...user, paidLeaves: [] }));
+  }
+}
+
 export default async function ShiftsPage({ searchParams }: { searchParams: { ym?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
@@ -58,20 +90,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const end = new Date(year, month, 1);
   const dayCount = daysInMonth(year, month);
 
-  const users = await prisma.user.findMany({
-    where: { companyId: session.user.companyId },
-    select: {
-      id: true,
-      name: true,
-      department: true,
-      createdAt: true,
-      paidLeaves: {
-        select: { usedDays: true },
-        take: 1
-      }
-    },
-    orderBy: [{ department: "asc" }, { createdAt: "asc" }]
-  }).catch(() => []);
+  const users = await getShiftUsers(session.user.companyId).catch(() => []);
 
   const [shifts, workPatterns, events, attendanceLogs] = await Promise.all([
     prisma.shift.findMany({
