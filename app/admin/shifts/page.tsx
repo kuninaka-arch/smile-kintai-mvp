@@ -60,7 +60,16 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
 
   const users = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
-    include: { positionMaster: true, paidLeaves: true },
+    select: {
+      id: true,
+      name: true,
+      department: true,
+      createdAt: true,
+      paidLeaves: {
+        select: { usedDays: true },
+        take: 1
+      }
+    },
     orderBy: [{ department: "asc" }, { createdAt: "asc" }]
   }).catch(() => []);
 
@@ -126,7 +135,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
       id: u.id,
       no: String(index + 1).padStart(3, "0"),
       name: u.name,
-      position: u.positionMaster?.name ?? "",
+      position: "",
       department: u.department ?? "-",
       actualWorkMinutes: actualWorkMinutes(userLogs),
       paidLeaveUsedMinutes: Math.round((paidLeave?.usedDays ?? 0) * 8 * 60)
