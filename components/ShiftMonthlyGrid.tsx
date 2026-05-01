@@ -452,13 +452,30 @@ export function ShiftMonthlyGrid({
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="overflow-auto">
-          <table className="min-w-[1600px] border-collapse text-xs">
+          <table className="min-w-max table-fixed border-collapse text-xs">
+            <colgroup>
+              <col className="w-[54px]" />
+              <col className="w-[90px]" />
+              <col className="w-[126px]" />
+              <col className="w-[110px]" />
+              {days.map((d) => (
+                <col key={d.dateStr} className="w-[58px]" />
+              ))}
+              <col className="w-[96px]" />
+              <col className="w-[112px]" />
+              <col className="w-[112px]" />
+              <col className="w-[112px]" />
+              <col className="w-[86px]" />
+              {workPatterns.map((pattern) => (
+                <col key={pattern.id} className="w-[86px]" />
+              ))}
+            </colgroup>
             <thead>
               <tr className="bg-slate-50">
-                <th className="sticky left-0 z-20 border bg-slate-50 p-2 text-left">番号</th>
-                <th className="sticky left-[54px] z-20 min-w-[90px] border bg-slate-50 p-2 text-left">役職</th>
-                <th className="sticky left-[144px] z-20 min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
-                <th className="sticky left-[270px] z-20 min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
+                <th className="sticky left-0 z-20 w-[54px] min-w-[54px] border bg-slate-50 p-2 text-left">番号</th>
+                <th className="sticky left-[54px] z-20 w-[90px] min-w-[90px] border bg-slate-50 p-2 text-left">役職</th>
+                <th className="sticky left-[144px] z-20 w-[126px] min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
+                <th className="sticky left-[270px] z-20 w-[110px] min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
                 {days.map((d) => (
                   <th
                     key={d.dateStr}
@@ -483,10 +500,10 @@ export function ShiftMonthlyGrid({
             <tbody>
               {visibleUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-blue-50/40">
-                  <td className="sticky left-0 z-10 border bg-white p-2 font-bold">{user.no}</td>
-                  <td className="sticky left-[54px] z-10 min-w-[90px] border bg-white p-2">{user.position || "-"}</td>
-                  <td className="sticky left-[144px] z-10 min-w-[126px] border bg-white p-2 font-black">{user.name}</td>
-                  <td className="sticky left-[270px] z-10 min-w-[110px] border bg-white p-2">{user.department}</td>
+                  <td className="sticky left-0 z-10 w-[54px] min-w-[54px] border bg-white p-2 font-bold">{user.no}</td>
+                  <td className="sticky left-[54px] z-10 w-[90px] min-w-[90px] border bg-white p-2">{user.position || "-"}</td>
+                  <td className="sticky left-[144px] z-10 w-[126px] min-w-[126px] border bg-white p-2 font-black">{user.name}</td>
+                  <td className="sticky left-[270px] z-10 w-[110px] min-w-[110px] border bg-white p-2">{user.department}</td>
                   {days.map((d) => {
                     const patternId = cells[toKey(user.id, d.dateStr)] ?? "";
                     const pattern = getPattern(patternId);
