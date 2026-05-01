@@ -1,9 +1,6 @@
 import Link from "next/link";
-import { requireAdmin } from "@/components/RequireAuth";
 
-export default async function SelectPage() {
-  await requireAdmin();
-
+export default function SelectPage() {
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-10">
       <section className="mx-auto max-w-3xl">
