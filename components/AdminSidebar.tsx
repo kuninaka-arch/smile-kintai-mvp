@@ -15,7 +15,7 @@ export function AdminSidebar({ active }: { active: string }) {
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-64 bg-slate-950 text-white lg:block">
       <div className="border-b border-white/10 p-6">
-        <div className="text-xl font-black">☺ スマイル勤怠</div>
+        <div className="text-xl font-black">☺ 勤怠管理システム</div>
         <p className="mt-1 text-xs text-slate-400">管理者画面</p>
       </div>
       <nav className="space-y-1 overflow-y-auto p-4 text-sm font-bold">
@@ -33,7 +33,7 @@ export function AdminSidebar({ active }: { active: string }) {
         {item("/admin/masters/employment-types", "雇用区分マスタ", "masters")}
         {item("/admin/masters/roles", "権限マスタ", "masters")}
         {item("/admin/masters/work-patterns", "勤務パターンマスタ", "masters")}
-        {item("/home", "社員画面", "home")}
+        {item("/home", "打刻画面", "home")}
       </nav>
     </aside>
   );

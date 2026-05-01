@@ -14,7 +14,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     const res = await signIn("credentials", { email, password, redirect: false });
-    if (res?.ok) router.push("/home");
+    if (res?.ok) router.push("/post-login");
     else setError("メールアドレスまたはパスワードが違います。");
   }
 
@@ -23,7 +23,7 @@ export default function LoginPage() {
       <div className="mx-auto max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-3xl text-white">☺</div>
-          <h1 className="text-3xl font-black text-blue-700">スマイル勤怠</h1>
+          <h1 className="text-3xl font-black text-blue-700">勤怠管理システム</h1>
           <p className="mt-2 text-sm text-slate-500">中小企業向け勤怠管理アプリ</p>
         </div>
 

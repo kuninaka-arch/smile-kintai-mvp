@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
+import { AdminSidebar } from "@/components/AdminSidebar";
 import { calcDailyWorkMinutes, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
 
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string } }) {
@@ -47,17 +48,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <aside className="fixed left-0 top-0 hidden h-screen w-64 bg-slate-950 text-white lg:block">
-        <div className="border-b border-white/10 p-6">
-          <div className="text-xl font-black">☺ スマイル勤怠</div>
-          <p className="mt-1 text-xs text-slate-400">管理者画面</p>
-        </div>
-        <nav className="space-y-1 p-4 text-sm font-bold">
-          <Link href="/admin" className="block rounded-2xl px-4 py-3 text-slate-300 hover:bg-white/10">ダッシュボード</Link>
-          <Link href="/admin/monthly" className="block rounded-2xl bg-blue-600 px-4 py-3">月次勤怠集計</Link>
-          <Link href="/home" className="block rounded-2xl px-4 py-3 text-slate-300 hover:bg-white/10">社員画面</Link>
-        </nav>
-      </aside>
+      <AdminSidebar active="monthly" />
 
       <section className="lg:ml-64">
         <header className="sticky top-0 z-10 border-b bg-white/90 px-5 py-4 backdrop-blur">

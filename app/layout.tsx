@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "スマイル勤怠",
+  title: "勤怠管理システム",
   description: "中小企業向け勤怠管理アプリ"
 };
 
