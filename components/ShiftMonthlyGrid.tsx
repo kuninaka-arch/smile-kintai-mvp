@@ -235,6 +235,8 @@ export function ShiftMonthlyGrid({
     if (selectedDepartment === "all") return users;
     return users.filter((user) => user.department === selectedDepartment);
   }, [selectedDepartment, users]);
+  const showDepartmentColumn = selectedDepartment === "all";
+  const frozenColumnCount = showDepartmentColumn ? 4 : 3;
 
   function setEvent(date: string, title: string) {
     setEvents((prev) => ({ ...prev, [date]: title }));
@@ -354,14 +356,23 @@ export function ShiftMonthlyGrid({
     const metricHeaders = ["勤務時間", "勤務予定時間", "有休消化時間", "有休予定時間"];
     const patternHeaders = workPatterns.map((pattern) => pattern.name);
     const rows: string[][] = [];
-    rows.push(["番号", "役職", "氏名", "所属", ...days.map((day) => String(day.day)), ...metricHeaders, "シフト回数", ...patternHeaders]);
+    rows.push([
+      "番号",
+      "役職",
+      "氏名",
+      ...(showDepartmentColumn ? ["所属"] : []),
+      ...days.map((day) => String(day.day)),
+      ...metricHeaders,
+      "シフト回数",
+      ...patternHeaders
+    ]);
     for (const user of visibleUsers) {
       const codes = days.map((day) => getPattern(cells[toKey(user.id, day.dateStr)] ?? "")?.code ?? "");
       rows.push([
         user.no,
         user.position,
         user.name,
-        user.department,
+        ...(showDepartmentColumn ? [user.department] : []),
         ...codes,
         formatHours(user.actualWorkMinutes),
         formatHours(plannedWorkMinutes(user.id)),
@@ -377,7 +388,7 @@ export function ShiftMonthlyGrid({
         pattern.name,
         "",
         "",
-        "",
+        ...(showDepartmentColumn ? [""] : []),
         ...days.map((day) => String(dailyPatternCount(day.dateStr, pattern.id))),
         "",
         "",
@@ -388,7 +399,7 @@ export function ShiftMonthlyGrid({
       ]);
     }
 
-    rows.push(["行事", "", "", "", ...days.map((day) => events[day.dateStr] ?? ""), "", "", "", "", "", ...workPatterns.map(() => "")]);
+    rows.push(["行事", "", "", ...(showDepartmentColumn ? [""] : []), ...days.map((day) => events[day.dateStr] ?? ""), "", "", "", "", "", ...workPatterns.map(() => "")]);
 
     const csv = "\uFEFF" + rows.map((row) => row.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -457,7 +468,7 @@ export function ShiftMonthlyGrid({
               <col className="w-[54px]" />
               <col className="w-[90px]" />
               <col className="w-[126px]" />
-              <col className="w-[110px]" />
+              {showDepartmentColumn && <col className="w-[110px]" />}
               {days.map((d) => (
                 <col key={d.dateStr} className="w-[58px]" />
               ))}
@@ -475,7 +486,9 @@ export function ShiftMonthlyGrid({
                 <th className="sticky left-0 z-20 w-[54px] min-w-[54px] border bg-slate-50 p-2 text-left">番号</th>
                 <th className="sticky left-[54px] z-20 w-[90px] min-w-[90px] border bg-slate-50 p-2 text-left">役職</th>
                 <th className="sticky left-[144px] z-20 w-[126px] min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
-                <th className="sticky left-[270px] z-20 w-[110px] min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
+                {showDepartmentColumn && (
+                  <th className="sticky left-[270px] z-20 w-[110px] min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
+                )}
                 {days.map((d) => (
                   <th
                     key={d.dateStr}
@@ -503,7 +516,9 @@ export function ShiftMonthlyGrid({
                   <td className="sticky left-0 z-10 w-[54px] min-w-[54px] border bg-white p-2 font-bold">{user.no}</td>
                   <td className="sticky left-[54px] z-10 w-[90px] min-w-[90px] border bg-white p-2">{user.position || "-"}</td>
                   <td className="sticky left-[144px] z-10 w-[126px] min-w-[126px] border bg-white p-2 font-black">{user.name}</td>
-                  <td className="sticky left-[270px] z-10 w-[110px] min-w-[110px] border bg-white p-2">{user.department}</td>
+                  {showDepartmentColumn && (
+                    <td className="sticky left-[270px] z-10 w-[110px] min-w-[110px] border bg-white p-2">{user.department}</td>
+                  )}
                   {days.map((d) => {
                     const patternId = cells[toKey(user.id, d.dateStr)] ?? "";
                     const pattern = getPattern(patternId);
@@ -537,7 +552,7 @@ export function ShiftMonthlyGrid({
               ))}
               {workPatterns.map((pattern) => (
                 <tr key={pattern.id} className="bg-slate-50">
-                  <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}</td>
+                  <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={frozenColumnCount}>{pattern.name}</td>
                   {days.map((d) => (
                     <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-2 text-center text-sm font-black text-slate-700">
                       {dailyPatternCount(d.dateStr, pattern.id)}
@@ -557,7 +572,7 @@ export function ShiftMonthlyGrid({
                 </tr>
               ))}
               <tr className="bg-amber-50">
-                <td className="sticky left-0 z-10 border bg-amber-50 p-2 font-black" colSpan={4}>行事</td>
+                <td className="sticky left-0 z-10 border bg-amber-50 p-2 font-black" colSpan={frozenColumnCount}>行事</td>
                 {days.map((d) => (
                   <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-1 align-top">
                     <textarea
