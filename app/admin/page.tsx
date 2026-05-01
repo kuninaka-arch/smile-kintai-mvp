@@ -22,7 +22,7 @@ export default async function AdminDashboard() {
       paidLeaves: true
     },
     orderBy: { createdAt: "asc" }
-  });
+  }).catch(() => []);
 
   const totalUsers = users.length;
   const clockedIn = users.filter((u) => u.attendanceLogs.some((l) => l.type === "CLOCK_IN")).length;
