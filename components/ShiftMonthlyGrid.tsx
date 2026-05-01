@@ -272,7 +272,7 @@ export function ShiftMonthlyGrid({
 
   function downloadCsv() {
     const metricHeaders = ["勤務時間", "勤務予定時間", "有休消化時間", "有休予定時間"];
-    const patternHeaders = workPatterns.map((pattern) => `${pattern.name}回数`);
+    const patternHeaders = workPatterns.map((pattern) => pattern.name);
     const rows: string[][] = [];
     rows.push(["番号", "役職", "氏名", "所属", ...days.map((day) => String(day.day)), ...metricHeaders, "シフト回数", ...patternHeaders]);
     for (const user of visibleUsers) {
@@ -294,7 +294,7 @@ export function ShiftMonthlyGrid({
 
     for (const pattern of workPatterns) {
       rows.push([
-        `${pattern.name}回数`,
+        pattern.name,
         "",
         "",
         "",
@@ -435,7 +435,7 @@ export function ShiftMonthlyGrid({
               ))}
               {workPatterns.map((pattern) => (
                 <tr key={pattern.id} className="bg-slate-50">
-                  <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}回数</td>
+                  <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}</td>
                   {days.map((d) => (
                     <td key={d.dateStr} className="border p-2 text-center text-sm font-black text-slate-700">
                       {dailyPatternCount(d.dateStr, pattern.id)}
