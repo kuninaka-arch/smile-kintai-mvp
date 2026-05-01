@@ -4,8 +4,9 @@ import { requireAdmin } from "@/components/RequireAuth";
 import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 import { AdminSidebar } from "@/components/AdminSidebar";
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({ searchParams }: { searchParams: { department?: string } }) {
   const session = await requireAdmin();
+  const selectedDepartment = searchParams.department ?? "all";
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -24,13 +25,18 @@ export default async function AdminDashboard() {
     orderBy: { createdAt: "asc" }
   }).catch(() => []);
 
-  const totalUsers = users.length;
-  const clockedIn = users.filter((u) => u.attendanceLogs.some((l) => l.type === "CLOCK_IN")).length;
-  const working = users.filter((u) => {
+  const departments = Array.from(new Set(users.map((user) => user.department ?? "-"))).sort();
+  const visibleUsers = selectedDepartment === "all"
+    ? users
+    : users.filter((user) => (user.department ?? "-") === selectedDepartment);
+
+  const totalUsers = visibleUsers.length;
+  const clockedIn = visibleUsers.filter((u) => u.attendanceLogs.some((l) => l.type === "CLOCK_IN")).length;
+  const working = visibleUsers.filter((u) => {
     const latest = u.attendanceLogs[0];
     return latest?.type === "CLOCK_IN" || latest?.type === "BREAK_END";
   }).length;
-  const breakNow = users.filter((u) => u.attendanceLogs[0]?.type === "BREAK_START").length;
+  const breakNow = visibleUsers.filter((u) => u.attendanceLogs[0]?.type === "BREAK_START").length;
   const notClocked = totalUsers - clockedIn;
 
   const menuItems = [
@@ -167,14 +173,31 @@ export default async function AdminDashboard() {
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
             <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b p-5">
+              <div className="flex flex-col gap-4 border-b p-5 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-lg font-black">本日のスタッフ一覧</h2>
                   <p className="text-sm text-slate-500">最新打刻、勤務状態、GPS取得状況を確認できます。</p>
                 </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  {users.length}名
-                </span>
+                <form className="flex flex-wrap items-center gap-2">
+                  <select
+                    name="department"
+                    defaultValue={selectedDepartment}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm"
+                  >
+                    <option value="all">全従業員</option>
+                    {departments.map((department) => (
+                      <option key={department} value={department}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm">
+                    表示
+                  </button>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                    {visibleUsers.length}名
+                  </span>
+                </form>
               </div>
 
               <div className="overflow-x-auto">
@@ -191,7 +214,7 @@ export default async function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((user) => {
+                    {visibleUsers.map((user) => {
                       const latest = user.attendanceLogs[0];
                       const status = getStatus(latest?.type);
                       const leave = user.paidLeaves[0];
