@@ -25,20 +25,20 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const users = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
     orderBy: [{ department: "asc" }, { createdAt: "asc" }]
-  });
+  }).catch(() => []);
 
   const [shifts, workPatterns, events] = await Promise.all([
     prisma.shift.findMany({
-    where: {
-      companyId: session.user.companyId,
-      workDate: { gte: start, lt: end }
-    },
-    orderBy: [{ workDate: "asc" }, { startTime: "asc" }]
-    }),
+      where: {
+        companyId: session.user.companyId,
+        workDate: { gte: start, lt: end }
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }]
+    }).catch(() => []),
     prisma.workPattern.findMany({
       where: { companyId: session.user.companyId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
-    }),
+    }).catch(() => []),
     prisma.shiftEvent.findMany({
       where: {
         companyId: session.user.companyId,
