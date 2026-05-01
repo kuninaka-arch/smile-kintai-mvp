@@ -463,7 +463,7 @@ export function ShiftMonthlyGrid({
                   <th
                     key={d.dateStr}
                     title={d.holidayName || undefined}
-                    className={`min-w-[52px] border p-1 text-center ${d.isHoliday || d.isSunday ? "bg-red-50 text-red-600" : d.isSaturday ? "bg-blue-50 text-blue-600" : "text-slate-600"}`}
+                    className={`w-[58px] min-w-[58px] border p-1 text-center ${d.isHoliday || d.isSunday ? "bg-red-50 text-red-600" : d.isSaturday ? "bg-blue-50 text-blue-600" : "text-slate-600"}`}
                   >
                     <div>{d.day}</div>
                     <div>{d.label}</div>
@@ -491,7 +491,7 @@ export function ShiftMonthlyGrid({
                     const patternId = cells[toKey(user.id, d.dateStr)] ?? "";
                     const pattern = getPattern(patternId);
                     return (
-                      <td key={d.dateStr} className="min-w-[52px] border p-1 text-center">
+                      <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-1 text-center">
                         <button
                           onClick={() => setCell(user.id, d.dateStr)}
                           onContextMenu={(e) => {
@@ -522,7 +522,7 @@ export function ShiftMonthlyGrid({
                 <tr key={pattern.id} className="bg-slate-50">
                   <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}</td>
                   {days.map((d) => (
-                    <td key={d.dateStr} className="min-w-[52px] border p-2 text-center text-sm font-black text-slate-700">
+                    <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-2 text-center text-sm font-black text-slate-700">
                       {dailyPatternCount(d.dateStr, pattern.id)}
                     </td>
                   ))}
@@ -542,11 +542,11 @@ export function ShiftMonthlyGrid({
               <tr className="bg-amber-50">
                 <td className="sticky left-0 z-10 border bg-amber-50 p-2 font-black" colSpan={4}>行事</td>
                 {days.map((d) => (
-                  <td key={d.dateStr} className="min-w-[52px] border p-1 align-top">
+                  <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-1 align-top">
                     <textarea
                       value={events[d.dateStr] ?? ""}
                       onChange={(e) => setEvent(d.dateStr, e.target.value)}
-                      className="h-28 w-10 resize-none rounded border bg-white px-1 py-2 text-center text-xs font-bold [writing-mode:vertical-rl]"
+                      className="h-28 w-12 resize-none rounded border bg-white px-1 py-2 text-center text-xs font-bold [writing-mode:vertical-rl]"
                       placeholder="行事"
                     />
                   </td>
