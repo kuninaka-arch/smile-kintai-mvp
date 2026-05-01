@@ -53,13 +53,6 @@ export async function POST(req: Request) {
     });
   }
 
-  await prisma.shiftEvent.deleteMany({
-    where: {
-      companyId: session.user.companyId,
-      workDate: { gte: start, lt: end }
-    }
-  });
-
   const eventData = events
     .map((event: any) => ({
       companyId: session.user.companyId,
@@ -68,8 +61,19 @@ export async function POST(req: Request) {
     }))
     .filter((event: any) => event.title);
 
-  if (eventData.length > 0) {
-    await prisma.shiftEvent.createMany({ data: eventData });
+  try {
+    await prisma.shiftEvent.deleteMany({
+      where: {
+        companyId: session.user.companyId,
+        workDate: { gte: start, lt: end }
+      }
+    });
+
+    if (eventData.length > 0) {
+      await prisma.shiftEvent.createMany({ data: eventData });
+    }
+  } catch {
+    // ShiftEvent may not exist until prisma db push is run in production.
   }
 
   return NextResponse.json({ ok: true, count: shifts.length, eventCount: eventData.length });

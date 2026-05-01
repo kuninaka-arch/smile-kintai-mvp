@@ -3,10 +3,13 @@ import { requireAdmin } from "@/components/RequireAuth";
 import Link from "next/link";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { ShiftMonthlyGrid } from "@/components/ShiftMonthlyGrid";
-import { toJaDateKey } from "@/lib/attendance";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 export default async function ShiftsPage({ searchParams }: { searchParams: { ym?: string } }) {
@@ -48,7 +51,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const initialShifts = shifts.map((s) => ({
     id: s.id,
     userId: s.userId,
-    date: toJaDateKey(s.workDate),
+    date: dateKey(s.workDate),
     startTime: s.startTime,
     endTime: s.endTime,
     breakMinutes: s.breakMinutes,
@@ -68,7 +71,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   }));
 
   const initialEvents = events.map((event) => ({
-    date: toJaDateKey(event.workDate),
+    date: dateKey(event.workDate),
     title: event.title
   }));
 

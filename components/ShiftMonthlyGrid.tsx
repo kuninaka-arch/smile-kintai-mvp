@@ -139,6 +139,10 @@ export function ShiftMonthlyGrid({
     return Boolean(pattern && !pattern.isHoliday);
   }
 
+  function getPattern(patternId: string) {
+    return patternId ? patternsById[patternId] ?? null : null;
+  }
+
   function monthlyShiftCount(userId: string) {
     return days.filter((day) => isWorkingPattern(cells[toKey(userId, day.dateStr)] ?? "")).length;
   }
@@ -329,7 +333,7 @@ export function ShiftMonthlyGrid({
                   <td className="sticky left-[180px] z-10 min-w-[110px] border bg-white p-2">{user.department}</td>
                   {days.map((d) => {
                     const patternId = cells[toKey(user.id, d.dateStr)] ?? "";
-                    const pattern = patternId ? patternsById[patternId] : null;
+                    const pattern = getPattern(patternId);
                     return (
                       <td key={d.dateStr} className="border p-1 text-center">
                         <button
