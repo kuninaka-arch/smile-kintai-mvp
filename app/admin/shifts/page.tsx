@@ -42,7 +42,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
         workDate: { gte: start, lt: end }
       },
       orderBy: { workDate: "asc" }
-    })
+    }).catch(() => [])
   ]);
 
   const initialShifts = shifts.map((s) => ({
