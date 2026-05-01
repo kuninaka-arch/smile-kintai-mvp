@@ -183,8 +183,8 @@ export function ShiftMonthlyGrid({
     }, 0);
   }
 
-  function dailyShiftCount(date: string) {
-    return visibleUsers.filter((user) => patternWorkMinutes(getPattern(cells[toKey(user.id, date)] ?? "")) > 0).length;
+  function dailyPatternCount(date: string, patternId: string) {
+    return visibleUsers.filter((user) => cells[toKey(user.id, date)] === patternId).length;
   }
 
   function setCell(userId: string, date: string) {
@@ -275,8 +275,6 @@ export function ShiftMonthlyGrid({
     const patternHeaders = workPatterns.map((pattern) => `${pattern.name}回数`);
     const rows: string[][] = [];
     rows.push(["番号", "役職", "氏名", "所属", ...days.map((day) => String(day.day)), ...metricHeaders, "シフト回数", ...patternHeaders]);
-    rows.push(["行事", "", "", "", ...days.map((day) => events[day.dateStr] ?? ""), "", "", "", "", "", ...workPatterns.map(() => "")]);
-
     for (const user of visibleUsers) {
       const codes = days.map((day) => getPattern(cells[toKey(user.id, day.dateStr)] ?? "")?.code ?? "");
       rows.push([
@@ -294,19 +292,23 @@ export function ShiftMonthlyGrid({
       ]);
     }
 
-    rows.push([
-      "日回数",
-      "",
-      "",
-      "",
-      ...days.map((day) => String(dailyShiftCount(day.dateStr))),
-      "",
-      "",
-      "",
-      "",
-      String(visibleUsers.reduce((sum, user) => sum + monthlyShiftCount(user.id), 0)),
-      ...workPatterns.map((pattern) => String(visibleUsers.reduce((sum, user) => sum + monthlyPatternCount(user.id, pattern.id), 0)))
-    ]);
+    for (const pattern of workPatterns) {
+      rows.push([
+        `${pattern.name}回数`,
+        "",
+        "",
+        "",
+        ...days.map((day) => String(dailyPatternCount(day.dateStr, pattern.id))),
+        "",
+        "",
+        "",
+        "",
+        String(visibleUsers.reduce((sum, user) => sum + monthlyPatternCount(user.id, pattern.id), 0)),
+        ...workPatterns.map(() => "")
+      ]);
+    }
+
+    rows.push(["行事", "", "", "", ...days.map((day) => events[day.dateStr] ?? ""), "", "", "", "", "", ...workPatterns.map(() => "")]);
 
     const csv = "\uFEFF" + rows.map((row) => row.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -392,20 +394,6 @@ export function ShiftMonthlyGrid({
                   <th key={pattern.id} className="border bg-slate-50 p-2 text-center">{pattern.name}</th>
                 ))}
               </tr>
-              <tr className="bg-amber-50">
-                <th className="sticky left-0 z-20 border bg-amber-50 p-2 text-left" colSpan={4}>行事</th>
-                {days.map((d) => (
-                  <th key={d.dateStr} className="border p-1 align-top">
-                    <textarea
-                      value={events[d.dateStr] ?? ""}
-                      onChange={(e) => setEvent(d.dateStr, e.target.value)}
-                      className="h-28 w-10 resize-none rounded border bg-white px-1 py-2 text-center text-xs font-bold [writing-mode:vertical-rl]"
-                      placeholder="行事"
-                    />
-                  </th>
-                ))}
-                <th className="border bg-amber-50 p-2" colSpan={5 + workPatterns.length} />
-              </tr>
             </thead>
             <tbody>
               {visibleUsers.map((user) => (
@@ -445,22 +433,40 @@ export function ShiftMonthlyGrid({
                   ))}
                 </tr>
               ))}
-              <tr className="bg-slate-50">
-                <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>日回数</td>
-                {days.map((d) => (
-                  <td key={d.dateStr} className="border p-2 text-center text-sm font-black text-slate-700">
-                    {dailyShiftCount(d.dateStr)}
-                  </td>
-                ))}
-                <td className="border p-2" colSpan={4} />
-                <td className="border p-2 text-center text-sm font-black text-blue-700">
-                  {visibleUsers.reduce((sum, user) => sum + monthlyShiftCount(user.id), 0)}
-                </td>
-                {workPatterns.map((pattern) => (
-                  <td key={pattern.id} className="border p-2 text-center text-sm font-black text-blue-700">
+              {workPatterns.map((pattern) => (
+                <tr key={pattern.id} className="bg-slate-50">
+                  <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}回数</td>
+                  {days.map((d) => (
+                    <td key={d.dateStr} className="border p-2 text-center text-sm font-black text-slate-700">
+                      {dailyPatternCount(d.dateStr, pattern.id)}
+                    </td>
+                  ))}
+                  <td className="border p-2" colSpan={4} />
+                  <td className="border p-2 text-center text-sm font-black text-blue-700">
                     {visibleUsers.reduce((sum, user) => sum + monthlyPatternCount(user.id, pattern.id), 0)}
                   </td>
+                  {workPatterns.map((summaryPattern) => (
+                    <td key={summaryPattern.id} className="border p-2 text-center text-sm font-black text-blue-700">
+                      {summaryPattern.id === pattern.id
+                        ? visibleUsers.reduce((sum, user) => sum + monthlyPatternCount(user.id, pattern.id), 0)
+                        : ""}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr className="bg-amber-50">
+                <td className="sticky left-0 z-10 border bg-amber-50 p-2 font-black" colSpan={4}>行事</td>
+                {days.map((d) => (
+                  <td key={d.dateStr} className="border p-1 align-top">
+                    <textarea
+                      value={events[d.dateStr] ?? ""}
+                      onChange={(e) => setEvent(d.dateStr, e.target.value)}
+                      className="h-28 w-10 resize-none rounded border bg-white px-1 py-2 text-center text-xs font-bold [writing-mode:vertical-rl]"
+                      placeholder="行事"
+                    />
+                  </td>
                 ))}
+                <td className="border bg-amber-50 p-2" colSpan={5 + workPatterns.length} />
               </tr>
             </tbody>
           </table>
