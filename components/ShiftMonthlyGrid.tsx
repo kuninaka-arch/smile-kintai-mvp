@@ -53,6 +53,81 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function dateStr(year: number, month: number, day: number) {
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function nthMonday(year: number, month: number, nth: number) {
+  let count = 0;
+  for (let day = 1; day <= 31; day += 1) {
+    const date = new Date(year, month - 1, day);
+    if (date.getMonth() !== month - 1) break;
+    if (date.getDay() === 1) {
+      count += 1;
+      if (count === nth) return day;
+    }
+  }
+  return 1;
+}
+
+function springEquinoxDay(year: number) {
+  return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function autumnEquinoxDay(year: number) {
+  return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function japaneseHolidayMap(year: number) {
+  const holidays = new Map<string, string>();
+  const add = (month: number, day: number, name: string) => holidays.set(dateStr(year, month, day), name);
+
+  add(1, 1, "元日");
+  add(1, nthMonday(year, 1, 2), "成人の日");
+  add(2, 11, "建国記念の日");
+  add(2, 23, "天皇誕生日");
+  add(3, springEquinoxDay(year), "春分の日");
+  add(4, 29, "昭和の日");
+  add(5, 3, "憲法記念日");
+  add(5, 4, "みどりの日");
+  add(5, 5, "こどもの日");
+  add(7, nthMonday(year, 7, 3), "海の日");
+  add(8, 11, "山の日");
+  add(9, nthMonday(year, 9, 3), "敬老の日");
+  add(9, autumnEquinoxDay(year), "秋分の日");
+  add(10, nthMonday(year, 10, 2), "スポーツの日");
+  add(11, 3, "文化の日");
+  add(11, 23, "勤労感謝の日");
+
+  const baseHolidayKeys = Array.from(holidays.keys()).sort();
+  for (const key of baseHolidayKeys) {
+    const [y, m, d] = key.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    if (date.getDay() !== 0) continue;
+
+    let substitute = new Date(y, m - 1, d + 1);
+    while (holidays.has(dateStr(substitute.getFullYear(), substitute.getMonth() + 1, substitute.getDate()))) {
+      substitute = new Date(substitute.getFullYear(), substitute.getMonth(), substitute.getDate() + 1);
+    }
+    if (substitute.getFullYear() === year) {
+      holidays.set(dateStr(year, substitute.getMonth() + 1, substitute.getDate()), "振替休日");
+    }
+  }
+
+  for (let month = 1; month <= 12; month += 1) {
+    const lastDay = new Date(year, month, 0).getDate();
+    for (let day = 2; day < lastDay; day += 1) {
+      const key = dateStr(year, month, day);
+      if (holidays.has(key)) continue;
+      if (holidays.has(dateStr(year, month, day - 1)) && holidays.has(dateStr(year, month, day + 1))) {
+        holidays.set(key, "国民の休日");
+      }
+    }
+  }
+
+  return holidays;
+}
+
 function csvEscape(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
@@ -113,20 +188,25 @@ export function ShiftMonthlyGrid({
 
   const patternsById = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.id, pattern])), [workPatterns]);
   const patternsByCode = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.code, pattern])), [workPatterns]);
+  const holidays = useMemo(() => japaneseHolidayMap(year), [year]);
 
   const days = useMemo(() => {
     return Array.from({ length: dayCount }, (_, i) => {
       const day = i + 1;
       const date = new Date(year, month - 1, day);
+      const key = dateStr(year, month, day);
+      const holidayName = holidays.get(key) ?? "";
       return {
         day,
-        dateStr: `${year}-${pad(month)}-${pad(day)}`,
+        dateStr: key,
         label: dayLabel(date),
+        holidayName,
+        isHoliday: Boolean(holidayName),
         isSunday: date.getDay() === 0,
         isSaturday: date.getDay() === 6
       };
     });
-  }, [year, month, dayCount]);
+  }, [year, month, dayCount, holidays]);
 
   const initialMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -380,9 +460,14 @@ export function ShiftMonthlyGrid({
                 <th className="sticky left-[144px] z-20 min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
                 <th className="sticky left-[270px] z-20 min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
                 {days.map((d) => (
-                  <th key={d.dateStr} className={`border p-1 text-center ${d.isSunday ? "text-red-500" : d.isSaturday ? "text-blue-500" : "text-slate-600"}`}>
+                  <th
+                    key={d.dateStr}
+                    title={d.holidayName || undefined}
+                    className={`min-w-[52px] border p-1 text-center ${d.isHoliday || d.isSunday ? "bg-red-50 text-red-600" : d.isSaturday ? "bg-blue-50 text-blue-600" : "text-slate-600"}`}
+                  >
                     <div>{d.day}</div>
                     <div>{d.label}</div>
+                    {d.isHoliday && <div className="text-[10px] font-black">祝</div>}
                   </th>
                 ))}
                 <th className="border bg-slate-50 p-2 text-center">勤務時間</th>
@@ -406,7 +491,7 @@ export function ShiftMonthlyGrid({
                     const patternId = cells[toKey(user.id, d.dateStr)] ?? "";
                     const pattern = getPattern(patternId);
                     return (
-                      <td key={d.dateStr} className="border p-1 text-center">
+                      <td key={d.dateStr} className="min-w-[52px] border p-1 text-center">
                         <button
                           onClick={() => setCell(user.id, d.dateStr)}
                           onContextMenu={(e) => {
@@ -437,7 +522,7 @@ export function ShiftMonthlyGrid({
                 <tr key={pattern.id} className="bg-slate-50">
                   <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={4}>{pattern.name}</td>
                   {days.map((d) => (
-                    <td key={d.dateStr} className="border p-2 text-center text-sm font-black text-slate-700">
+                    <td key={d.dateStr} className="min-w-[52px] border p-2 text-center text-sm font-black text-slate-700">
                       {dailyPatternCount(d.dateStr, pattern.id)}
                     </td>
                   ))}
@@ -457,7 +542,7 @@ export function ShiftMonthlyGrid({
               <tr className="bg-amber-50">
                 <td className="sticky left-0 z-10 border bg-amber-50 p-2 font-black" colSpan={4}>行事</td>
                 {days.map((d) => (
-                  <td key={d.dateStr} className="border p-1 align-top">
+                  <td key={d.dateStr} className="min-w-[52px] border p-1 align-top">
                     <textarea
                       value={events[d.dateStr] ?? ""}
                       onChange={(e) => setEvent(d.dateStr, e.target.value)}
