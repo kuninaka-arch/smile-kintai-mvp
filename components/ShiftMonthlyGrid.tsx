@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
 type UserRow = {
@@ -32,6 +33,11 @@ type WorkPatternRow = {
   isHoliday: boolean;
 };
 
+type InitialEvent = {
+  date: string;
+  title: string;
+};
+
 function toKey(userId: string, date: string) {
   return `${userId}_${date}`;
 }
@@ -51,7 +57,8 @@ export function ShiftMonthlyGrid({
   dayCount,
   users,
   initialShifts,
-  workPatterns
+  workPatterns,
+  initialEvents
 }: {
   ym: string;
   year: number;
@@ -60,10 +67,13 @@ export function ShiftMonthlyGrid({
   users: UserRow[];
   initialShifts: InitialShift[];
   workPatterns: WorkPatternRow[];
+  initialEvents: InitialEvent[];
 }) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPatternId, setSelectedPatternId] = useState(workPatterns[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
 
   const patternsById = useMemo(() => {
@@ -111,6 +121,32 @@ export function ShiftMonthlyGrid({
 
   const [cells, setCells] = useState<Record<string, string>>(initialMap);
 
+  const initialEventMap = useMemo(() => {
+    return Object.fromEntries(initialEvents.map((event) => [event.date, event.title]));
+  }, [initialEvents]);
+
+  const [events, setEvents] = useState<Record<string, string>>(initialEventMap);
+
+  function setEvent(date: string, title: string) {
+    setEvents((prev) => ({
+      ...prev,
+      [date]: title
+    }));
+  }
+
+  function isWorkingPattern(patternId: string) {
+    const pattern = patternsById[patternId];
+    return Boolean(pattern && !pattern.isHoliday);
+  }
+
+  function monthlyShiftCount(userId: string) {
+    return days.filter((day) => isWorkingPattern(cells[toKey(userId, day.dateStr)] ?? "")).length;
+  }
+
+  function dailyShiftCount(date: string) {
+    return users.filter((user) => isWorkingPattern(cells[toKey(user.id, date)] ?? "")).length;
+  }
+
   function setCell(userId: string, date: string) {
     if (!selectedPatternId) return;
     setCells((prev) => ({
@@ -147,10 +183,14 @@ export function ShiftMonthlyGrid({
         };
       });
 
+    const eventRows = Object.entries(events)
+      .map(([workDate, title]) => ({ workDate, title: title.trim() }))
+      .filter((event) => event.workDate.startsWith(ym));
+
     const res = await fetch("/api/admin/shifts/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ym, shifts })
+      body: JSON.stringify({ ym, shifts, events: eventRows })
     });
 
     setSaving(false);
@@ -162,6 +202,39 @@ export function ShiftMonthlyGrid({
     }
   }
 
+  async function importCsv(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setMessage("シフト表を取り込んでいます...");
+
+    try {
+      const buffer = await file.arrayBuffer();
+      let text = new TextDecoder("utf-8").decode(buffer);
+      if (text.includes("\uFFFD")) {
+        text = new TextDecoder("shift_jis").decode(buffer);
+      }
+
+      const res = await fetch("/api/admin/shifts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ym, csv: text })
+      });
+
+      if (res.ok) {
+        setMessage("シフト表を取り込みました。");
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setMessage(data.error ?? "取込に失敗しました。");
+      }
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-3xl bg-white p-4 shadow-sm">
@@ -170,13 +243,30 @@ export function ShiftMonthlyGrid({
             <h2 className="text-lg font-black">{year}年{month}月 シフト表</h2>
             <p className="text-sm text-slate-500">勤務パターンを選び、セルをクリックして入力します。右クリックで削除できます。</p>
           </div>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="rounded-xl bg-blue-600 px-6 py-3 font-black text-white shadow-sm disabled:opacity-60"
-          >
-            {saving ? "保存中..." : "一括保存"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/admin/shifts/export?ym=${ym}`}
+              className="rounded-xl bg-green-600 px-4 py-3 text-sm font-black text-white shadow-sm"
+            >
+              Excel出力
+            </a>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-60"
+            >
+              {importing ? "取込中..." : "Excel取込"}
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={importCsv} className="hidden" />
+            <button
+              onClick={save}
+              disabled={saving}
+              className="rounded-xl bg-blue-600 px-6 py-3 font-black text-white shadow-sm disabled:opacity-60"
+            >
+              {saving ? "保存中..." : "一括保存"}
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -214,6 +304,21 @@ export function ShiftMonthlyGrid({
                     <div>{d.label}</div>
                   </th>
                 ))}
+                <th className="border bg-slate-50 p-2 text-center">月回数</th>
+              </tr>
+              <tr className="bg-amber-50">
+                <th className="sticky left-0 z-20 border bg-amber-50 p-2 text-left" colSpan={3}>行事</th>
+                {days.map((d) => (
+                  <th key={d.dateStr} className="border p-1">
+                    <input
+                      value={events[d.dateStr] ?? ""}
+                      onChange={(e) => setEvent(d.dateStr, e.target.value)}
+                      className="h-9 w-20 rounded border bg-white px-2 text-center text-xs font-bold"
+                      placeholder="行事"
+                    />
+                  </th>
+                ))}
+                <th className="border bg-amber-50 p-2" />
               </tr>
             </thead>
             <tbody>
@@ -243,8 +348,20 @@ export function ShiftMonthlyGrid({
                       </td>
                     );
                   })}
+                  <td className="border bg-blue-50 p-2 text-center text-sm font-black text-blue-700">{monthlyShiftCount(user.id)}</td>
                 </tr>
               ))}
+              <tr className="bg-slate-50">
+                <td className="sticky left-0 z-10 border bg-slate-50 p-2 font-black" colSpan={3}>日回数</td>
+                {days.map((d) => (
+                  <td key={d.dateStr} className="border p-2 text-center text-sm font-black text-slate-700">
+                    {dailyShiftCount(d.dateStr)}
+                  </td>
+                ))}
+                <td className="border p-2 text-center text-sm font-black text-blue-700">
+                  {users.reduce((sum, user) => sum + monthlyShiftCount(user.id), 0)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

@@ -29,6 +29,7 @@ model Company {
   roleMasters RoleMaster[]
   workPatterns WorkPattern[]
   shifts    Shift[]
+  shiftEvents ShiftEvent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -88,6 +89,19 @@ model Shift {
   updatedAt DateTime @updatedAt
 
   @@index([companyId, userId, workDate])
+}
+
+model ShiftEvent {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  workDate  DateTime
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, workDate])
+  @@index([companyId, workDate])
 }
 
 model PaidLeave {

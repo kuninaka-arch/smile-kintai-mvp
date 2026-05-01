@@ -18,7 +18,7 @@ export default async function CorrectionsPage() {
       <header className="bg-gradient-to-br from-blue-700 to-sky-500 px-5 pb-8 pt-5 text-white">
         <div className="mx-auto max-w-md">
           <div className="flex items-center justify-between">
-            <div className="text-lg font-black">☺ 勤怠管理システム</div>
+            <Link href="/post-login" className="text-lg font-black">☺ 勤怠管理システム</Link>
             <Link href="/home" className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">ホーム</Link>
           </div>
           <h1 className="mt-8 text-3xl font-black">打刻修正申請</h1>

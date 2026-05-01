@@ -16,6 +16,7 @@ export async function POST(req: Request) {
   const end = new Date(year, month, 1);
 
   const shifts = Array.isArray(body.shifts) ? body.shifts : [];
+  const events = Array.isArray(body.events) ? body.events : [];
 
   // 対象月の既存シフトを一度削除し、一括再登録するMVP仕様
   await prisma.shift.deleteMany({
@@ -52,5 +53,24 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, count: shifts.length });
+  await prisma.shiftEvent.deleteMany({
+    where: {
+      companyId: session.user.companyId,
+      workDate: { gte: start, lt: end }
+    }
+  });
+
+  const eventData = events
+    .map((event: any) => ({
+      companyId: session.user.companyId,
+      workDate: new Date(`${event.workDate}T00:00:00`),
+      title: String(event.title ?? "").trim()
+    }))
+    .filter((event: any) => event.title);
+
+  if (eventData.length > 0) {
+    await prisma.shiftEvent.createMany({ data: eventData });
+  }
+
+  return NextResponse.json({ ok: true, count: shifts.length, eventCount: eventData.length });
 }

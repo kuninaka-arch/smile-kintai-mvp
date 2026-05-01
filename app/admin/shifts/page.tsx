@@ -24,7 +24,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     orderBy: [{ department: "asc" }, { createdAt: "asc" }]
   });
 
-  const [shifts, workPatterns] = await Promise.all([
+  const [shifts, workPatterns, events] = await Promise.all([
     prisma.shift.findMany({
     where: {
       companyId: session.user.companyId,
@@ -35,6 +35,13 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     prisma.workPattern.findMany({
       where: { companyId: session.user.companyId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
+    }),
+    prisma.shiftEvent.findMany({
+      where: {
+        companyId: session.user.companyId,
+        workDate: { gte: start, lt: end }
+      },
+      orderBy: { workDate: "asc" }
     })
   ]);
 
@@ -58,6 +65,11 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     breakMinutes: pattern.breakMinutes,
     colorClass: pattern.colorClass,
     isHoliday: pattern.isHoliday
+  }));
+
+  const initialEvents = events.map((event) => ({
+    date: toJaDateKey(event.workDate),
+    title: event.title
   }));
 
   const usersForGrid = users.map((u, index) => ({
@@ -115,6 +127,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
             users={usersForGrid}
             initialShifts={initialShifts}
             workPatterns={workPatternRows}
+            initialEvents={initialEvents}
           />
         </div>
       </section>

@@ -3,6 +3,7 @@ import { requireAuth } from "@/components/RequireAuth";
 import { PunchButtons } from "@/components/PunchButtons";
 import { minutesToHHMM, calcDailyWorkMinutes, formatJaDate, formatJaTime } from "@/lib/attendance";
 import Link from "next/link";
+import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function HomePage() {
   const session = await requireAuth();
@@ -53,10 +54,13 @@ export default async function HomePage() {
       <header className="bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 px-5 pb-8 pt-5 text-white">
         <div className="mx-auto max-w-md">
           <div className="flex items-center justify-between">
-            <div className="text-lg font-black">☺ 勤怠管理システム</div>
-            <Link href="/history" className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
-              履歴
-            </Link>
+            <Link href="/post-login" className="text-lg font-black">☺ 勤怠管理システム</Link>
+            <div className="flex items-center gap-2">
+              <Link href="/history" className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
+                履歴
+              </Link>
+              <SignOutButton />
+            </div>
           </div>
 
           <div className="mt-8 rounded-3xl bg-white/15 p-5 shadow-lg backdrop-blur">
