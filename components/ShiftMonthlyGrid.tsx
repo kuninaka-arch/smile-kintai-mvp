@@ -50,6 +50,10 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function csvEscape(value: unknown) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
 export function ShiftMonthlyGrid({
   ym,
   year,
@@ -239,6 +243,39 @@ export function ShiftMonthlyGrid({
     }
   }
 
+  function downloadCsv() {
+    const rows: string[][] = [];
+    rows.push(["番号", "氏名", "所属", ...days.map((day) => String(day.day)), "月回数"]);
+    rows.push(["行事", "", "", ...days.map((day) => events[day.dateStr] ?? ""), ""]);
+
+    for (const user of users) {
+      const codes = days.map((day) => {
+        const patternId = cells[toKey(user.id, day.dateStr)] ?? "";
+        return getPattern(patternId)?.code ?? "";
+      });
+      rows.push([user.no, user.name, user.department, ...codes, String(monthlyShiftCount(user.id))]);
+    }
+
+    rows.push([
+      "日回数",
+      "",
+      "",
+      ...days.map((day) => String(dailyShiftCount(day.dateStr))),
+      String(users.reduce((sum, user) => sum + monthlyShiftCount(user.id), 0))
+    ]);
+
+    const csv = "\uFEFF" + rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `shift-${ym}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-3xl bg-white p-4 shadow-sm">
@@ -248,12 +285,13 @@ export function ShiftMonthlyGrid({
             <p className="text-sm text-slate-500">勤務パターンを選び、セルをクリックして入力します。右クリックで削除できます。</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={`/api/admin/shifts/export?ym=${ym}`}
+            <button
+              type="button"
+              onClick={downloadCsv}
               className="rounded-xl bg-green-600 px-4 py-3 text-sm font-black text-white shadow-sm"
             >
               Excel出力
-            </a>
+            </button>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
