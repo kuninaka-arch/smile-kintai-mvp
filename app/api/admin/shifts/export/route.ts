@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { toJaDateKey } from "@/lib/attendance";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function csvEscape(value: unknown) {
@@ -26,22 +29,25 @@ export async function GET(req: Request) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
 
-  const [users, shifts, events] = await Promise.all([
+  const [users, shifts, patterns, events] = await Promise.all([
     prisma.user.findMany({
       where: { companyId: session.user.companyId },
       orderBy: [{ department: "asc" }, { createdAt: "asc" }]
     }),
     prisma.shift.findMany({
-      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } },
-      include: { workPattern: true }
+      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
+    }),
+    prisma.workPattern.findMany({
+      where: { companyId: session.user.companyId }
     }),
     prisma.shiftEvent.findMany({
       where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
-    })
+    }).catch(() => [])
   ]);
 
-  const shiftMap = new Map(shifts.map((shift) => [`${shift.userId}_${toJaDateKey(shift.workDate)}`, shift]));
-  const eventMap = new Map(events.map((event) => [toJaDateKey(event.workDate), event.title]));
+  const shiftMap = new Map(shifts.map((shift) => [`${shift.userId}_${dateKey(shift.workDate)}`, shift]));
+  const patternMap = new Map(patterns.map((pattern) => [pattern.id, pattern]));
+  const eventMap = new Map(events.map((event) => [dateKey(event.workDate), event.title]));
   const days = Array.from({ length: dayCount }, (_, i) => `${ym}-${String(i + 1).padStart(2, "0")}`);
 
   const lines: string[][] = [];
@@ -52,8 +58,9 @@ export async function GET(req: Request) {
     let monthlyCount = 0;
     const codes = days.map((date) => {
       const shift = shiftMap.get(`${user.id}_${date}`);
-      if (shift?.workPattern && !shift.workPattern.isHoliday) monthlyCount += 1;
-      return shift?.patternCode ?? shift?.workPattern?.code ?? "";
+      const pattern = shift?.workPatternId ? patternMap.get(shift.workPatternId) : null;
+      if (shift && !pattern?.isHoliday) monthlyCount += 1;
+      return shift?.patternCode ?? pattern?.code ?? "";
     });
 
     lines.push([String(index + 1).padStart(3, "0"), user.name, user.department ?? "", ...codes, String(monthlyCount)]);
@@ -63,7 +70,8 @@ export async function GET(req: Request) {
     return String(
       users.filter((user) => {
         const shift = shiftMap.get(`${user.id}_${date}`);
-        return Boolean(shift?.workPattern && !shift.workPattern.isHoliday);
+        const pattern = shift?.workPatternId ? patternMap.get(shift.workPatternId) : null;
+        return Boolean(shift && !pattern?.isHoliday);
       }).length
     );
   });
