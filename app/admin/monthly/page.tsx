@@ -101,7 +101,12 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                       <td className="p-4 font-bold">{row.days}日</td>
                       <td className="p-4 font-bold text-blue-700">{minutesToHHMM(row.total)}</td>
                       <td className="p-4 font-bold text-red-600">{minutesToHHMM(row.overtime)}</td>
-                      <td className="p-4 font-bold">{row.leaveRemain}日</td>
+                      <td className="p-4 font-bold">
+                        <div>{row.leaveRemain}日</div>
+                        <Link href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}`} className="mt-2 inline-block text-xs font-black text-blue-700 underline">
+                          明細
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
