@@ -48,36 +48,59 @@ function actualWorkMinutes(logs: Array<{ type: string; stampedAt: Date }>) {
   return Math.max(0, Math.round(total));
 }
 
-async function getShiftUsers(companyId: string) {
-  try {
-    return await prisma.user.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        createdAt: true,
-        paidLeaves: {
-          select: { usedDays: true },
-          take: 1
-        }
-      },
-      orderBy: [{ department: "asc" }, { createdAt: "asc" }]
-    });
-  } catch {
-    const users = await prisma.user.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        createdAt: true
-      },
-      orderBy: [{ department: "asc" }, { createdAt: "asc" }]
-    });
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-    return users.map((user) => ({ ...user, paidLeaves: [] }));
+async function withDbRetry<T>(read: () => Promise<T>, fallback: T, attempts = 3): Promise<T> {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await read();
+    } catch {
+      if (i < attempts - 1) await wait(350 * (i + 1));
+    }
   }
+  return fallback;
+}
+
+async function getShiftUsers(companyId: string) {
+  const usersWithPaidLeave = await withDbRetry(
+      () =>
+        prisma.user.findMany({
+          where: { companyId },
+          select: {
+            id: true,
+            name: true,
+            department: true,
+            createdAt: true,
+            paidLeaves: {
+              select: { usedDays: true },
+              take: 1
+            }
+          },
+          orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+        }),
+      null
+    );
+
+  if (usersWithPaidLeave) return usersWithPaidLeave;
+
+  const users = await withDbRetry(
+      () =>
+        prisma.user.findMany({
+          where: { companyId },
+          select: {
+            id: true,
+            name: true,
+            department: true,
+            createdAt: true
+          },
+          orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+        }),
+      []
+    );
+
+  return users.map((user) => ({ ...user, paidLeaves: [] }));
 }
 
 export default async function ShiftsPage({ searchParams }: { searchParams: { ym?: string } }) {
@@ -90,35 +113,44 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const end = new Date(year, month, 1);
   const dayCount = daysInMonth(year, month);
 
-  const users = await getShiftUsers(session.user.companyId).catch(() => []);
-
-  const [shifts, workPatterns, events, attendanceLogs] = await Promise.all([
-    prisma.shift.findMany({
+  const users = await getShiftUsers(session.user.companyId);
+  const shifts = await withDbRetry(
+    () => prisma.shift.findMany({
       where: {
         companyId: session.user.companyId,
         workDate: { gte: start, lt: end }
       },
       orderBy: [{ workDate: "asc" }, { startTime: "asc" }]
-    }).catch(() => []),
-    prisma.workPattern.findMany({
+    }),
+    []
+  );
+  const workPatterns = await withDbRetry(
+    () => prisma.workPattern.findMany({
       where: { companyId: session.user.companyId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
-    }).catch(() => []),
-    prisma.shiftEvent.findMany({
+    }),
+    []
+  );
+  const events = await withDbRetry(
+    () => prisma.shiftEvent.findMany({
       where: {
         companyId: session.user.companyId,
         workDate: { gte: start, lt: end }
       },
       orderBy: { workDate: "asc" }
-    }).catch(() => []),
-    prisma.attendanceLog.findMany({
+    }),
+    []
+  );
+  const attendanceLogs = await withDbRetry(
+    () => prisma.attendanceLog.findMany({
       where: {
         companyId: session.user.companyId,
         stampedAt: { gte: start, lt: end }
       },
       orderBy: { stampedAt: "asc" }
-    }).catch(() => [])
-  ]);
+    }),
+    []
+  );
 
   const initialShifts = shifts.map((s) => ({
     id: s.id,
