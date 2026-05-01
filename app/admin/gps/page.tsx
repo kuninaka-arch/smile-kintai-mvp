@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaDateTime, typeLabel } from "@/lib/attendance";
 
 export default async function GpsPage() {
   const session = await requireAdmin();
@@ -58,7 +58,7 @@ export default async function GpsPage() {
                     <p className="text-xs font-bold text-blue-700">{typeLabel(log.type)}</p>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">
-                    {log.stampedAt.toLocaleDateString("ja-JP")} {log.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                    {formatJaDateTime(log.stampedAt)}
                   </p>
                   <p className="mt-1 text-xs text-slate-400">
                     {log.latitude}, {log.longitude}

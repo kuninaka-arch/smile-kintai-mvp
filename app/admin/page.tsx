@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 import { AdminSidebar } from "@/components/AdminSidebar";
 
 export default async function AdminDashboard() {
@@ -88,7 +88,7 @@ export default async function AdminDashboard() {
             <div>
               <p className="text-sm font-bold text-blue-700">管理者ダッシュボード</p>
               <h1 className="text-2xl font-black">本日の勤怠状況</h1>
-              <p className="text-sm text-slate-500">{todayStart.toLocaleDateString("ja-JP")} の出勤状況を確認できます。</p>
+              <p className="text-sm text-slate-500">{formatJaDate(todayStart)} の出勤状況を確認できます。</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link href="/admin/masters" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
@@ -218,7 +218,7 @@ export default async function AdminDashboard() {
                           </td>
                           <td className="p-4">{latest ? typeLabel(latest.type) : "-"}</td>
                           <td className="p-4 font-bold">
-                            {latest ? latest.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                            {latest ? formatJaTime(latest.stampedAt) : "-"}
                           </td>
                           <td className="p-4">
                             {latest?.latitude ? (

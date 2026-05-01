@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { calcDailyWorkMinutes, minutesToHHMM } from "@/lib/attendance";
+import { calcDailyWorkMinutes, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   for (const user of users) {
     const byDate = new Map<string, typeof user.attendanceLogs>();
     for (const log of user.attendanceLogs) {
-      const key = log.stampedAt.toISOString().slice(0, 10);
+      const key = toJaDateKey(log.stampedAt);
       byDate.set(key, [...(byDate.get(key) ?? []), log]);
     }
 

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/components/RequireAuth";
 import { CorrectionRequestForm } from "@/components/CorrectionRequestForm";
 import Link from "next/link";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 
 export default async function CorrectionsPage() {
   const session = await requireAuth();
@@ -41,7 +41,7 @@ export default async function CorrectionsPage() {
                   <Status status={r.status} />
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  {r.targetDate.toLocaleDateString("ja-JP")} {r.requestedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                  {formatJaDate(r.targetDate)} {formatJaTime(r.requestedAt)}
                 </p>
                 <p className="mt-2 text-sm">{r.reason}</p>
               </div>

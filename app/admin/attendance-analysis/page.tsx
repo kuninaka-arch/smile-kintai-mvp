@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
-import { minutesToHHMM, calcDailyWorkMinutes } from "@/lib/attendance";
+import { minutesToHHMM, calcDailyWorkMinutes, dateToJaMinutes, formatJaTime, toJaDateKey } from "@/lib/attendance";
 
 type Status = "OK" | "LATE" | "EARLY" | "MISSING_IN" | "MISSING_OUT" | "NO_SHIFT";
 
@@ -13,10 +13,6 @@ function parseDate(dateStr: string) {
 function toMinutes(time: string) {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
-}
-
-function dateToMinutes(date: Date) {
-  return date.getHours() * 60 + date.getMinutes();
 }
 
 function statusLabel(status: Status) {
@@ -43,7 +39,7 @@ function statusClass(status: Status) {
 
 export default async function AttendanceAnalysisPage({ searchParams }: { searchParams: { date?: string; grace?: string } }) {
   const session = await requireAdmin();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toJaDateKey(new Date());
   const dateStr = searchParams.date ?? todayStr;
   const graceMinutes = Number(searchParams.grace ?? 5);
 
@@ -86,13 +82,13 @@ export default async function AttendanceAnalysisPage({ searchParams }: { searchP
     } else if (!clockOut) {
       status = "MISSING_OUT";
       const scheduledStart = toMinutes(shift.startTime);
-      lateMinutes = Math.max(0, dateToMinutes(clockIn.stampedAt) - scheduledStart);
+      lateMinutes = Math.max(0, dateToJaMinutes(clockIn.stampedAt) - scheduledStart);
       if (lateMinutes > graceMinutes) status = "LATE";
     } else {
       const scheduledStart = toMinutes(shift.startTime);
       const scheduledEnd = toMinutes(shift.endTime);
-      const actualIn = dateToMinutes(clockIn.stampedAt);
-      const actualOut = dateToMinutes(clockOut.stampedAt);
+      const actualIn = dateToJaMinutes(clockIn.stampedAt);
+      const actualOut = dateToJaMinutes(clockOut.stampedAt);
 
       lateMinutes = Math.max(0, actualIn - scheduledStart);
       earlyMinutes = Math.max(0, scheduledEnd - actualOut);
@@ -224,10 +220,10 @@ export default async function AttendanceAnalysisPage({ searchParams }: { searchP
                         {row.shift ? `${row.shift.startTime}〜${row.shift.endTime}` : "-"}
                       </td>
                       <td className="p-4 font-bold">
-                        {row.clockIn ? row.clockIn.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                        {row.clockIn ? formatJaTime(row.clockIn.stampedAt) : "-"}
                       </td>
                       <td className="p-4 font-bold">
-                        {row.clockOut ? row.clockOut.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                        {row.clockOut ? formatJaTime(row.clockOut.stampedAt) : "-"}
                       </td>
                       <td className="p-4 font-bold text-blue-700">{minutesToHHMM(row.workMinutes)}</td>
                       <td className="p-4 font-bold text-red-700">{row.lateMinutes > 0 ? `${row.lateMinutes}分` : "-"}</td>

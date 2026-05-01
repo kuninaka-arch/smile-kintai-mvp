@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
-import { calcDailyWorkMinutes, minutesToHHMM } from "@/lib/attendance";
+import { calcDailyWorkMinutes, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
 
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string } }) {
   const session = await requireAdmin();
@@ -26,7 +26,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   const rows = users.map((user) => {
     const byDate = new Map<string, typeof user.attendanceLogs>();
     for (const log of user.attendanceLogs) {
-      const key = log.stampedAt.toISOString().slice(0, 10);
+      const key = toJaDateKey(log.stampedAt);
       byDate.set(key, [...(byDate.get(key) ?? []), log]);
     }
     let days = 0;

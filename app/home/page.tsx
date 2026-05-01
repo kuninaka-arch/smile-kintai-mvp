@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/components/RequireAuth";
 import { PunchButtons } from "@/components/PunchButtons";
-import { minutesToHHMM, calcDailyWorkMinutes } from "@/lib/attendance";
+import { minutesToHHMM, calcDailyWorkMinutes, formatJaDate, formatJaTime } from "@/lib/attendance";
 import Link from "next/link";
 
 export default async function HomePage() {
@@ -88,7 +88,7 @@ export default async function HomePage() {
         <div className="mt-5 rounded-3xl bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-black">今日の打刻</h2>
-            <span className="text-xs text-slate-400">{new Date().toLocaleDateString("ja-JP")}</span>
+            <span className="text-xs text-slate-400">{formatJaDate(new Date())}</span>
           </div>
           <div className="space-y-3">
             {logs.length === 0 ? (
@@ -111,7 +111,7 @@ export default async function HomePage() {
                     <p className="text-xs text-slate-400">{log.latitude ? "GPS取得済み" : "GPSなし"}</p>
                   </div>
                   <p className="text-lg font-black">
-                    {log.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                    {formatJaTime(log.stampedAt)}
                   </p>
                 </div>
               ))

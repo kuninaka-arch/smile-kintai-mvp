@@ -3,9 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+function todayInJapan() {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
 export function CorrectionRequestForm() {
   const router = useRouter();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInJapan();
   const [targetDate, setTargetDate] = useState(today);
   const [requestedType, setRequestedType] = useState("CLOCK_IN");
   const [requestedTime, setRequestedTime] = useState("09:00");

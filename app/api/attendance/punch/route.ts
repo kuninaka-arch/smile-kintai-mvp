@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { AttendanceType } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaTime, typeLabel } from "@/lib/attendance";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -29,6 +29,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     label: typeLabel(type),
-    time: log.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+    time: formatJaTime(log.stampedAt)
   });
 }

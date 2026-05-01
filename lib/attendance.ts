@@ -1,5 +1,19 @@
 import { AttendanceLog, AttendanceType } from "@prisma/client";
 
+const jaDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+const jaTimeFormatter = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+
 export function typeLabel(type: AttendanceType) {
   switch (type) {
     case "CLOCK_IN": return "出勤";
@@ -7,6 +21,33 @@ export function typeLabel(type: AttendanceType) {
     case "BREAK_START": return "休憩開始";
     case "BREAK_END": return "休憩終了";
   }
+}
+
+export function formatJaDate(date: Date) {
+  return jaDateFormatter.format(date);
+}
+
+export function formatJaTime(date: Date) {
+  return jaTimeFormatter.format(date);
+}
+
+export function formatJaDateTime(date: Date) {
+  return `${formatJaDate(date)} ${formatJaTime(date)}`;
+}
+
+export function toJaDateKey(date: Date) {
+  const parts = jaDateFormatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+export function dateToJaMinutes(date: Date) {
+  const parts = jaTimeFormatter.formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
 }
 
 export function calcDailyWorkMinutes(logs: AttendanceLog[]) {

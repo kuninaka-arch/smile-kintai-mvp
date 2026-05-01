@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 import { CorrectionActionButtons } from "@/components/CorrectionActionButtons";
 
 export default async function AdminCorrectionsPage() {
@@ -42,9 +42,9 @@ export default async function AdminCorrectionsPage() {
                 {requests.map((r) => (
                   <tr key={r.id} className="border-t">
                     <td className="p-4 font-black">{r.user.name}</td>
-                    <td className="p-4">{r.targetDate.toLocaleDateString("ja-JP")}</td>
+                    <td className="p-4">{formatJaDate(r.targetDate)}</td>
                     <td className="p-4">{typeLabel(r.requestedType)}</td>
-                    <td className="p-4">{r.requestedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className="p-4">{formatJaTime(r.requestedAt)}</td>
                     <td className="p-4 max-w-[280px]">{r.reason}</td>
                     <td className="p-4"><Status status={r.status} /></td>
                     <td className="p-4"><CorrectionActionButtons id={r.id} disabled={r.status !== "PENDING"} /></td>

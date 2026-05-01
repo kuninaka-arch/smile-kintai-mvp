@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/components/RequireAuth";
 import { Nav } from "@/components/Nav";
-import { typeLabel } from "@/lib/attendance";
+import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 
 export default async function HistoryPage() {
   const session = await requireAuth();
@@ -22,10 +22,10 @@ export default async function HistoryPage() {
             <div key={log.id} className="flex items-center justify-between border-b p-4 last:border-b-0">
               <div>
                 <p className="font-bold">{typeLabel(log.type)}</p>
-                <p className="text-xs text-slate-500">{log.stampedAt.toLocaleDateString("ja-JP")}</p>
+                <p className="text-xs text-slate-500">{formatJaDate(log.stampedAt)}</p>
               </div>
               <div className="text-right">
-                <p className="font-black">{log.stampedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}</p>
+                <p className="font-black">{formatJaTime(log.stampedAt)}</p>
                 <p className="text-xs text-slate-500">{log.latitude ? "GPSあり" : "GPSなし"}</p>
               </div>
             </div>
