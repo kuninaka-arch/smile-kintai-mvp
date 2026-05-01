@@ -21,12 +21,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       })
     : null;
 
+  const positionMaster = body.positionMasterId
+    ? await prisma.positionMaster.findFirst({
+        where: { id: body.positionMasterId, companyId: session.user.companyId, isActive: true }
+      })
+    : null;
+
   await prisma.user.update({
     where: { id: params.id },
     data: {
       name: body.name,
       email: body.email,
       department: body.department || null,
+      positionMasterId: positionMaster?.id ?? null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null
     }

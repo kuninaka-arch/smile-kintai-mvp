@@ -12,6 +12,42 @@ function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function minutesBetween(startTime: string, endTime: string, breakMinutes = 0) {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  if ([sh, sm, eh, em].some((value) => Number.isNaN(value))) return 0;
+  let minutes = eh * 60 + em - (sh * 60 + sm) - breakMinutes;
+  if (minutes < 0) minutes += 24 * 60;
+  return Math.max(0, minutes);
+}
+
+function actualWorkMinutes(logs: Array<{ type: string; stampedAt: Date }>) {
+  let total = 0;
+  let clockIn: Date | null = null;
+  let breakStart: Date | null = null;
+  let breakMinutes = 0;
+
+  for (const log of logs) {
+    if (log.type === "CLOCK_IN") {
+      clockIn = log.stampedAt;
+      breakStart = null;
+      breakMinutes = 0;
+    } else if (log.type === "BREAK_START") {
+      breakStart = log.stampedAt;
+    } else if (log.type === "BREAK_END" && breakStart) {
+      breakMinutes += Math.max(0, log.stampedAt.getTime() - breakStart.getTime()) / 60000;
+      breakStart = null;
+    } else if (log.type === "CLOCK_OUT" && clockIn) {
+      total += Math.max(0, log.stampedAt.getTime() - clockIn.getTime()) / 60000 - breakMinutes;
+      clockIn = null;
+      breakStart = null;
+      breakMinutes = 0;
+    }
+  }
+
+  return Math.max(0, Math.round(total));
+}
+
 export default async function ShiftsPage({ searchParams }: { searchParams: { ym?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
@@ -24,10 +60,11 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
 
   const users = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
+    include: { positionMaster: true, paidLeaves: true },
     orderBy: [{ department: "asc" }, { createdAt: "asc" }]
   }).catch(() => []);
 
-  const [shifts, workPatterns, events] = await Promise.all([
+  const [shifts, workPatterns, events, attendanceLogs] = await Promise.all([
     prisma.shift.findMany({
       where: {
         companyId: session.user.companyId,
@@ -45,6 +82,13 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
         workDate: { gte: start, lt: end }
       },
       orderBy: { workDate: "asc" }
+    }).catch(() => []),
+    prisma.attendanceLog.findMany({
+      where: {
+        companyId: session.user.companyId,
+        stampedAt: { gte: start, lt: end }
+      },
+      orderBy: { stampedAt: "asc" }
     }).catch(() => [])
   ]);
 
@@ -75,12 +119,21 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     title: event.title
   }));
 
-  const usersForGrid = users.map((u, index) => ({
-    id: u.id,
-    no: String(index + 1).padStart(3, "0"),
-    name: u.name,
-    department: u.department ?? "-"
-  }));
+  const usersForGrid = users.map((u, index) => {
+    const userLogs = attendanceLogs.filter((log) => log.userId === u.id);
+    const paidLeave = u.paidLeaves[0];
+    return {
+      id: u.id,
+      no: String(index + 1).padStart(3, "0"),
+      name: u.name,
+      position: u.positionMaster?.name ?? "",
+      department: u.department ?? "-",
+      actualWorkMinutes: actualWorkMinutes(userLogs),
+      paidLeaveUsedMinutes: Math.round((paidLeave?.usedDays ?? 0) * 8 * 60)
+    };
+  });
+
+  const departments = Array.from(new Set(usersForGrid.map((user) => user.department).filter(Boolean))).sort();
 
   const prevMonth = new Date(year, month - 2, 1);
   const nextMonth = new Date(year, month, 1);
@@ -131,6 +184,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
             initialShifts={initialShifts}
             workPatterns={workPatternRows}
             initialEvents={initialEvents}
+            departments={departments}
           />
         </div>
       </section>

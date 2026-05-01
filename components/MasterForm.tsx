@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type MasterKind = "department" | "employmentType" | "role";
+type MasterKind = "department" | "employmentType" | "position" | "role";
 
 export function MasterForm({
   kind,
@@ -33,6 +33,7 @@ export function MasterForm({
   const pathMap = {
     department: "/api/admin/masters/departments",
     employmentType: "/api/admin/masters/employment-types",
+    position: "/api/admin/masters/positions",
     role: "/api/admin/masters/roles"
   };
 
@@ -83,7 +84,18 @@ export function MasterForm({
         </div>
       )}
 
-      <Field label="コード" value={code} onChange={setCode} />
+      {kind === "role" ? (
+        <label className="block">
+          <span className="text-xs font-black text-slate-500">権限</span>
+          <select value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2" required>
+            <option value="">選択してください</option>
+            <option value="ADMIN">管理者</option>
+            <option value="EMPLOYEE">社員</option>
+          </select>
+        </label>
+      ) : (
+        <Field label="コード" value={code} onChange={setCode} />
+      )}
       <Field label="名称" value={name} onChange={setName} />
       {kind === "role" && <Field label="説明" value={description} onChange={setDescription} required={false} />}
       <Field label="表示順" value={sortOrder} onChange={setSortOrder} type="number" />

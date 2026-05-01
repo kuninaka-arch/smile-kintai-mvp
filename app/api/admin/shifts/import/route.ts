@@ -55,8 +55,19 @@ export async function POST(req: Request) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
   const rows = parseCsv(csv);
+  const headerRow = rows.find((row) => row.some((cell) => cell.trim() === "1")) ?? rows[0] ?? [];
+  const dayColumns = Array.from({ length: dayCount }, (_, i) => {
+    const day = String(i + 1);
+    const index = headerRow.findIndex((cell) => cell.trim() === day);
+    return index >= 0 ? index : i + 4;
+  });
+  const nameIndex = headerRow.findIndex((cell) => cell.trim() === "氏名");
+  const resolvedNameIndex = nameIndex >= 0 ? nameIndex : 2;
   const eventRow = rows.find((row) => row[0]?.trim() === "行事");
-  const dataRows = rows.filter((row) => row[0]?.trim() && row[0]?.trim() !== "番号" && row[0]?.trim() !== "行事" && row[0]?.trim() !== "日回数");
+  const dataRows = rows.filter((row) => {
+    const first = row[0]?.trim();
+    return first && !["番号", "行事", "日回数"].includes(first);
+  });
 
   const [users, patterns] = await Promise.all([
     prisma.user.findMany({ where: { companyId: session.user.companyId } }),
@@ -77,12 +88,12 @@ export async function POST(req: Request) {
   }> = [];
 
   for (const row of dataRows) {
-    const userName = row[1]?.trim();
-    const user = userByName.get(userName);
+    const userName = row[resolvedNameIndex]?.trim();
+    const user = userName ? userByName.get(userName) : null;
     if (!user) continue;
 
     for (let day = 1; day <= dayCount; day += 1) {
-      const code = row[day + 2]?.trim();
+      const code = row[dayColumns[day - 1]]?.trim();
       if (!code) continue;
 
       const pattern = patternByCode.get(code);
@@ -102,7 +113,7 @@ export async function POST(req: Request) {
   }
 
   const events = Array.from({ length: dayCount }, (_, i) => {
-    const title = eventRow?.[i + 3]?.trim() ?? "";
+    const title = eventRow?.[dayColumns[i]]?.trim() ?? "";
     return {
       companyId: session.user.companyId,
       workDate: new Date(`${ym}-${String(i + 1).padStart(2, "0")}T00:00:00`),

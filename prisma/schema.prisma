@@ -26,6 +26,7 @@ model Company {
   users     User[]
   departments Department[]
   employmentTypes EmploymentType[]
+  positionMasters PositionMaster[]
   roleMasters RoleMaster[]
   workPatterns WorkPattern[]
   shifts    Shift[]
@@ -45,6 +46,8 @@ model User {
   department    String?
   departmentId   String?
   departmentMaster Department? @relation(fields: [departmentId], references: [id])
+  positionMasterId String?
+  positionMaster PositionMaster? @relation(fields: [positionMasterId], references: [id])
   employmentTypeId String?
   employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
   roleMasterId  String?
@@ -160,6 +163,22 @@ model Department {
 }
 
 model EmploymentType {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  code      String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, sortOrder])
+}
+
+model PositionMaster {
   id        String   @id @default(cuid())
   companyId String
   company   Company  @relation(fields: [companyId], references: [id])

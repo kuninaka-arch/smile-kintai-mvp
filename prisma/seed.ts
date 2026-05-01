@@ -38,6 +38,30 @@ async function main() {
     }
   });
 
+  const managerPosition = await prisma.positionMaster.upsert({
+    where: { companyId_code: { companyId: company.id, code: "MANAGER" } },
+    update: { name: "管理者", isActive: true },
+    create: {
+      companyId: company.id,
+      code: "MANAGER",
+      name: "管理者",
+      sortOrder: 1,
+      isActive: true
+    }
+  });
+
+  const staffPosition = await prisma.positionMaster.upsert({
+    where: { companyId_code: { companyId: company.id, code: "STAFF" } },
+    update: { name: "一般", isActive: true },
+    create: {
+      companyId: company.id,
+      code: "STAFF",
+      name: "一般",
+      sortOrder: 2,
+      isActive: true
+    }
+  });
+
   const dayPattern = await prisma.workPattern.upsert({
     where: { companyId_code: { companyId: company.id, code: "A" } },
     update: { name: "A勤", startTime: "09:00", endTime: "18:00", breakMinutes: 60, isActive: true },
@@ -56,7 +80,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@smile-kintai.local" },
-    update: { roleMasterId: adminRoleMaster.id },
+    update: { roleMasterId: adminRoleMaster.id, positionMasterId: managerPosition.id },
     create: {
       companyId: company.id,
       name: "管理者 太郎",
@@ -64,13 +88,14 @@ async function main() {
       passwordHash,
       role: Role.ADMIN,
       roleMasterId: adminRoleMaster.id,
+      positionMasterId: managerPosition.id,
       department: "管理部"
     }
   });
 
   const employee = await prisma.user.upsert({
     where: { email: "employee@smile-kintai.local" },
-    update: { roleMasterId: employeeRoleMaster.id },
+    update: { roleMasterId: employeeRoleMaster.id, positionMasterId: staffPosition.id },
     create: {
       companyId: company.id,
       name: "社員 花子",
@@ -78,6 +103,7 @@ async function main() {
       passwordHash,
       role: Role.EMPLOYEE,
       roleMasterId: employeeRoleMaster.id,
+      positionMasterId: staffPosition.id,
       department: "営業部"
     }
   });

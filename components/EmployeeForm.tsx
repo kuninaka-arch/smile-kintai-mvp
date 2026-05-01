@@ -11,20 +11,29 @@ type RoleMasterOption = {
   name: string;
 };
 
+type PositionOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 export function EmployeeForm({
   mode,
   user,
-  roleMasters
+  roleMasters,
+  positions
 }: {
   mode: "create" | "edit";
-  user?: { id: string; name: string; email: string; department: string; role: Role; roleMasterId: string | null };
+  user?: { id: string; name: string; email: string; department: string; role: Role; roleMasterId: string | null; positionMasterId: string | null };
   roleMasters: RoleMasterOption[];
+  positions: PositionOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(mode === "create");
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [department, setDepartment] = useState(user?.department ?? "");
+  const [positionMasterId, setPositionMasterId] = useState(user?.positionMasterId ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "EMPLOYEE");
   const [roleMasterId, setRoleMasterId] = useState(user?.roleMasterId ?? roleMasters.find((item) => item.code === (user?.role ?? "EMPLOYEE"))?.id ?? "");
   const [password, setPassword] = useState("password123");
@@ -43,7 +52,7 @@ export function EmployeeForm({
     const res = await fetch(mode === "create" ? "/api/admin/employees" : `/api/admin/employees/${user?.id}`, {
       method: mode === "create" ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, department, role, roleMasterId, password })
+      body: JSON.stringify({ name, email, department, positionMasterId, role, roleMasterId, password })
     });
 
     if (res.ok) {
@@ -52,6 +61,7 @@ export function EmployeeForm({
         setName("");
         setEmail("");
         setDepartment("");
+        setPositionMasterId("");
         setPassword("password123");
       }
       router.refresh();
@@ -83,6 +93,17 @@ export function EmployeeForm({
       <Field label="氏名" value={name} onChange={setName} />
       <Field label="メール" value={email} onChange={setEmail} type="email" />
       <Field label="所属" value={department} onChange={setDepartment} />
+      <label className="block">
+        <span className="text-xs font-black text-slate-500">役職</span>
+        <select value={positionMasterId} onChange={(e) => setPositionMasterId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2">
+          <option value="">未設定</option>
+          {positions.map((position) => (
+            <option key={position.id} value={position.id}>
+              {position.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {mode === "create" && <Field label="初期パスワード" value={password} onChange={setPassword} type="password" />}
       <label className="block">
         <span className="text-xs font-black text-slate-500">権限</span>

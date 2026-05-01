@@ -23,6 +23,12 @@ export async function POST(req: Request) {
       })
     : null;
 
+  const positionMaster = body.positionMasterId
+    ? await prisma.positionMaster.findFirst({
+        where: { id: body.positionMasterId, companyId: session.user.companyId, isActive: true }
+      })
+    : null;
+
   const passwordHash = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.create({
     data: {
@@ -30,6 +36,7 @@ export async function POST(req: Request) {
       name: body.name,
       email: body.email,
       department: body.department || null,
+      positionMasterId: positionMaster?.id ?? null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null,
       passwordHash

@@ -16,8 +16,8 @@ export function AdminSidebar({ active }: { active: string }) {
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-64 bg-slate-950 text-white lg:block">
       <div className="border-b border-white/10 p-6">
-        <Link href="/post-login" className="block text-xl font-black">☺ 勤怠管理システム</Link>
-        <p className="mt-1 text-xs text-slate-400">管理者画面</p>
+        <Link href="/post-login" className="block text-xl font-black">勤怠管理システム</Link>
+        <p className="mt-1 text-xs text-slate-400">管理画面</p>
       </div>
       <nav className="space-y-1 overflow-y-auto p-4 text-sm font-bold">
         {item("/admin", "ダッシュボード", "dashboard")}
@@ -31,6 +31,7 @@ export function AdminSidebar({ active }: { active: string }) {
         <div className="px-4 pt-3 text-[11px] font-black uppercase tracking-wider text-slate-500">マスタ</div>
         {item("/admin/masters/company", "会社マスタ", "masters")}
         {item("/admin/masters/departments", "部署マスタ", "masters")}
+        {item("/admin/masters/positions", "役職マスタ", "masters")}
         {item("/admin/masters/employment-types", "雇用区分マスタ", "masters")}
         {item("/admin/masters/roles", "権限マスタ", "masters")}
         {item("/admin/masters/work-patterns", "勤務パターンマスタ", "masters")}
