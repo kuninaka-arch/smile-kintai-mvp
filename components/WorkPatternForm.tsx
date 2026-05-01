@@ -46,6 +46,16 @@ export function WorkPatternForm({
   const [isActive, setIsActive] = useState(item?.isActive ?? true);
   const [message, setMessage] = useState("");
 
+  function changeHoliday(nextIsHoliday: boolean) {
+    setIsHoliday(nextIsHoliday);
+    if (nextIsHoliday) {
+      setStartTime("00:00");
+      setEndTime("00:00");
+      setBreakMinutes("0");
+      setColorClass("bg-slate-200 text-slate-700");
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
@@ -117,7 +127,7 @@ export function WorkPatternForm({
 
       <div className="flex flex-wrap gap-3">
         <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold">
-          <input type="checkbox" checked={isHoliday} onChange={(e) => setIsHoliday(e.target.checked)} />
+          <input type="checkbox" checked={isHoliday} onChange={(e) => changeHoliday(e.target.checked)} />
           休日扱い
         </label>
         <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold">
