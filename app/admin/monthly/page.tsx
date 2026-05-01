@@ -4,17 +4,28 @@ import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { calcDailyWorkMinutes, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
 
-export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string } }) {
+export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const selectedDepartment = searchParams.department ?? "all";
   const [year, month] = ym.split("-").map(Number);
 
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
 
-  const users = await prisma.user.findMany({
+  const departmentsSource = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
+    select: { department: true },
+    orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+  });
+  const departments = Array.from(new Set(departmentsSource.map((user) => user.department ?? "-"))).sort();
+
+  const users = await prisma.user.findMany({
+    where: {
+      companyId: session.user.companyId,
+      ...(selectedDepartment === "all" ? {} : { department: selectedDepartment === "-" ? null : selectedDepartment })
+    },
     include: {
       attendanceLogs: {
         where: { stampedAt: { gte: start, lt: end } },
@@ -58,7 +69,13 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               <p className="text-sm text-slate-500">{ym} の勤怠集計</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <form className="flex gap-2">
+              <form className="flex flex-wrap gap-2">
+                <select name="department" defaultValue={selectedDepartment} className="rounded-xl border px-4 py-2">
+                  <option value="all">全従業員</option>
+                  {departments.map((department) => (
+                    <option key={department} value={department}>{department}</option>
+                  ))}
+                </select>
                 <input name="ym" type="month" defaultValue={ym} className="rounded-xl border px-4 py-2" />
                 <button className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white">検索</button>
               </form>
@@ -103,7 +120,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                       <td className="p-4 font-bold text-red-600">{minutesToHHMM(row.overtime)}</td>
                       <td className="p-4 font-bold">
                         <div>{row.leaveRemain}日</div>
-                        <Link href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}`} className="mt-2 inline-block text-xs font-black text-blue-700 underline">
+                        <Link href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}&department=${encodeURIComponent(row.user.department ?? "-")}`} className="mt-2 inline-block text-xs font-black text-blue-700 underline">
                           明細
                         </Link>
                       </td>

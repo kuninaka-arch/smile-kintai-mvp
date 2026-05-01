@@ -49,10 +49,11 @@ function statusClass(status: DayStatus) {
   }
 }
 
-export default async function EmployeeMonthlyPage({ searchParams }: { searchParams: { userId?: string; ym?: string } }) {
+export default async function EmployeeMonthlyPage({ searchParams }: { searchParams: { userId?: string; ym?: string; department?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const selectedDepartment = searchParams.department ?? "all";
   const [year, month] = ym.split("-").map(Number);
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
@@ -63,8 +64,12 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
     select: { id: true, name: true, department: true },
     orderBy: [{ department: "asc" }, { createdAt: "asc" }]
   });
-  const selectedUserId = searchParams.userId ?? users[0]?.id ?? "";
-  const selectedUser = users.find((user) => user.id === selectedUserId) ?? users[0] ?? null;
+  const departments = Array.from(new Set(users.map((user) => user.department ?? "-"))).sort();
+  const filteredUsers = selectedDepartment === "all"
+    ? users
+    : users.filter((user) => (user.department ?? "-") === selectedDepartment);
+  const selectedUserId = searchParams.userId ?? filteredUsers[0]?.id ?? "";
+  const selectedUser = filteredUsers.find((user) => user.id === selectedUserId) ?? filteredUsers[0] ?? null;
 
   const [shifts, logs] = selectedUser
     ? await Promise.all([
@@ -125,8 +130,14 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
               <p className="text-sm text-slate-500">1ヶ月単位で予定と打刻実績を確認できます。</p>
             </div>
             <form className="flex flex-wrap items-center gap-2">
+              <select name="department" defaultValue={selectedDepartment} className="rounded-xl border px-4 py-2">
+                <option value="all">全従業員</option>
+                {departments.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
               <select name="userId" defaultValue={selectedUser?.id ?? ""} className="rounded-xl border px-4 py-2">
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <option key={user.id} value={user.id}>{user.name}</option>
                 ))}
               </select>

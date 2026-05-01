@@ -3,8 +3,10 @@ import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { EmployeeForm } from "@/components/EmployeeForm";
 
-export default async function EmployeesPage() {
+export default async function EmployeesPage({ searchParams }: { searchParams: { department?: string; q?: string } }) {
   const session = await requireAdmin();
+  const selectedDepartment = searchParams.department ?? "all";
+  const q = (searchParams.q ?? "").trim();
 
   const [users, roleMasters, positions] = await Promise.all([
     prisma.user.findMany({
@@ -34,6 +36,14 @@ export default async function EmployeesPage() {
     name: position.name
   }));
 
+  const departments = Array.from(new Set(users.map((user) => user.department ?? "-"))).sort();
+  const filteredUsers = users.filter((user) => {
+    const matchesDepartment = selectedDepartment === "all" || (user.department ?? "-") === selectedDepartment;
+    const keyword = q.toLowerCase();
+    const matchesKeyword = !keyword || user.name.toLowerCase().includes(keyword) || user.email.toLowerCase().includes(keyword);
+    return matchesDepartment && matchesKeyword;
+  });
+
   return (
     <main className="min-h-screen bg-slate-100">
       <AdminSidebar active="employees" />
@@ -42,6 +52,16 @@ export default async function EmployeesPage() {
           <div className="mx-auto max-w-7xl">
             <h1 className="text-2xl font-black">社員管理</h1>
             <p className="text-sm text-slate-500">社員の追加、編集、権限、役職を管理します。</p>
+            <form className="mt-4 flex flex-wrap gap-2">
+              <select name="department" defaultValue={selectedDepartment} className="rounded-xl border px-4 py-2">
+                <option value="all">全従業員</option>
+                {departments.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
+              <input name="q" defaultValue={q} placeholder="氏名・メール検索" className="rounded-xl border px-4 py-2" />
+              <button className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white">検索</button>
+            </form>
           </div>
         </header>
 
@@ -54,6 +74,7 @@ export default async function EmployeesPage() {
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b p-5">
               <h2 className="text-lg font-black">社員一覧</h2>
+              <p className="text-sm text-slate-500">{filteredUsers.length}名を表示中</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-sm">
@@ -68,7 +89,7 @@ export default async function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <tr key={user.id} className="border-t">
                       <td className="p-4 font-black">{user.name}</td>
                       <td className="p-4">{user.email}</td>
