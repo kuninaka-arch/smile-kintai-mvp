@@ -20,6 +20,11 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
         where: { stampedAt: { gte: todayStart, lt: todayEnd } },
         orderBy: { stampedAt: "desc" }
       },
+      shifts: {
+        where: { workDate: { gte: todayStart, lt: todayEnd } },
+        include: { workPattern: true },
+        orderBy: { workDate: "asc" }
+      },
       paidLeaves: true
     },
     orderBy: { createdAt: "asc" }
@@ -32,12 +37,13 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
 
   const totalUsers = visibleUsers.length;
   const clockedIn = visibleUsers.filter((u) => u.attendanceLogs.some((l) => l.type === "CLOCK_IN")).length;
+  const holidayUsers = visibleUsers.filter((u) => !u.attendanceLogs.some((l) => l.type === "CLOCK_IN") && isHolidayShift(u.shifts[0])).length;
   const working = visibleUsers.filter((u) => {
     const latest = u.attendanceLogs[0];
     return latest?.type === "CLOCK_IN" || latest?.type === "BREAK_END";
   }).length;
   const breakNow = visibleUsers.filter((u) => u.attendanceLogs[0]?.type === "BREAK_START").length;
-  const notClocked = totalUsers - clockedIn;
+  const notClocked = Math.max(0, totalUsers - clockedIn - holidayUsers);
 
   const menuItems = [
     {
@@ -130,11 +136,12 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
             </div>
           </section>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <KpiCard label="社員数" value={`${totalUsers}名`} sub="登録社員" color="text-slate-900" />
             <KpiCard label="本日出勤" value={`${clockedIn}名`} sub="出勤打刻済み" color="text-blue-700" />
             <KpiCard label="勤務中" value={`${working}名`} sub="現在勤務中" color="text-green-700" />
             <KpiCard label="休憩中" value={`${breakNow}名`} sub="休憩打刻中" color="text-orange-600" />
+            <KpiCard label="休日・休暇" value={`${holidayUsers}名`} sub="公休・有休など" color="text-slate-600" />
             <KpiCard label="未打刻" value={`${notClocked}名`} sub="出勤未確認" color="text-red-600" />
           </div>
 
@@ -201,11 +208,12 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm">
+                <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-slate-50 text-left text-xs text-slate-500">
                     <tr>
                       <th className="p-4">社員</th>
                       <th className="p-4">所属</th>
+                      <th className="p-4">本日シフト</th>
                       <th className="p-4">状態</th>
                       <th className="p-4">最新打刻</th>
                       <th className="p-4">時刻</th>
@@ -216,7 +224,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
                   <tbody>
                     {visibleUsers.map((user) => {
                       const latest = user.attendanceLogs[0];
-                      const status = getStatus(latest?.type);
+                      const todayShift = user.shifts[0];
+                      const status = getStatus(latest?.type, todayShift);
                       const leave = user.paidLeaves[0];
                       const leaveRemain = leave ? leave.grantedDays - leave.usedDays : 0;
 
@@ -234,6 +243,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
                             </div>
                           </td>
                           <td className="p-4">{user.department ?? "-"}</td>
+                          <td className="p-4 font-bold">{getShiftLabel(todayShift)}</td>
                           <td className="p-4">
                             <span className={`rounded-full px-3 py-1 text-xs font-black ${status.className}`}>
                               {status.label}
@@ -265,6 +275,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
                 <div className="mt-5 space-y-4">
                   <Progress label="出勤率" value={totalUsers ? Math.round((clockedIn / totalUsers) * 100) : 0} />
                   <Progress label="勤務中" value={totalUsers ? Math.round((working / totalUsers) * 100) : 0} />
+                  <Progress label="休日・休暇" value={totalUsers ? Math.round((holidayUsers / totalUsers) * 100) : 0} />
                   <Progress label="未打刻" value={totalUsers ? Math.round((notClocked / totalUsers) * 100) : 0} danger />
                 </div>
               </div>
@@ -291,6 +302,17 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
   );
 }
 
+type DashboardShift = {
+  patternCode: string | null;
+  startTime: string;
+  endTime: string;
+  workPattern: {
+    code: string;
+    name: string;
+    isHoliday: boolean;
+  } | null;
+};
+
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
     <div className="rounded-3xl bg-white p-5 shadow-sm">
@@ -315,7 +337,21 @@ function Progress({ label, value, danger = false }: { label: string; value: numb
   );
 }
 
-function getStatus(type?: string) {
+function getShiftLabel(shift?: DashboardShift) {
+  if (!shift) return "シフト未登録";
+  const pattern = shift.workPattern;
+  const name = pattern?.name ?? shift.patternCode ?? "シフト";
+  if (isHolidayShift(shift)) return name;
+  return `${name} ${shift.startTime}-${shift.endTime}`;
+}
+
+function isHolidayShift(shift?: DashboardShift) {
+  if (!shift) return false;
+  const patternText = `${shift.patternCode ?? ""} ${shift.workPattern?.code ?? ""} ${shift.workPattern?.name ?? ""}`;
+  return shift.workPattern?.isHoliday === true || /公休|休日|休み|有休|有給|代休|特別休暇|育休|産休|忌引/.test(patternText);
+}
+
+function getStatus(type?: string, shift?: DashboardShift) {
   if (type === "CLOCK_IN" || type === "BREAK_END") {
     return { label: "勤務中", className: "bg-green-50 text-green-700" };
   }
@@ -324,6 +360,9 @@ function getStatus(type?: string) {
   }
   if (type === "CLOCK_OUT") {
     return { label: "退勤済み", className: "bg-slate-100 text-slate-600" };
+  }
+  if (isHolidayShift(shift)) {
+    return { label: shift?.workPattern?.name ?? shift?.patternCode ?? "休日・休暇", className: "bg-slate-100 text-slate-600" };
   }
   return { label: "未打刻", className: "bg-red-50 text-red-600" };
 }
