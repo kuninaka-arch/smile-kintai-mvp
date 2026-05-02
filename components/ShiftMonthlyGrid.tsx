@@ -41,6 +41,13 @@ type InitialEvent = {
   title: string;
 };
 
+type ContextMenuState = {
+  userId: string;
+  date: string;
+  x: number;
+  y: number;
+} | null;
+
 function toKey(userId: string, date: string) {
   return `${userId}_${date}`;
 }
@@ -182,6 +189,10 @@ export function ShiftMonthlyGrid({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPatternId, setSelectedPatternId] = useState(workPatterns[0]?.id ?? "");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [isDragging, setIsDragging] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [autoFillOpen, setAutoFillOpen] = useState(false);
+  const [autoFillRotation, setAutoFillRotation] = useState("care");
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
@@ -269,9 +280,9 @@ export function ShiftMonthlyGrid({
     return visibleUsers.filter((user) => cells[toKey(user.id, date)] === patternId).length;
   }
 
-  function setCell(userId: string, date: string) {
-    if (!selectedPatternId) return;
-    setCells((prev) => ({ ...prev, [toKey(userId, date)]: selectedPatternId }));
+  function setCell(userId: string, date: string, patternId = selectedPatternId) {
+    if (!patternId) return;
+    setCells((prev) => ({ ...prev, [toKey(userId, date)]: patternId }));
   }
 
   function clearCell(userId: string, date: string) {
@@ -280,6 +291,36 @@ export function ShiftMonthlyGrid({
       delete next[toKey(userId, date)];
       return next;
     });
+  }
+
+  function applyContextPattern(patternId: string) {
+    if (!contextMenu) return;
+    setCell(contextMenu.userId, contextMenu.date, patternId);
+    setContextMenu(null);
+  }
+
+  function autoFill() {
+    const rotations: Record<string, string[]> = {
+      care: ["E1", "A", "L1", "N1", "OFF", "OFF"],
+      nurse: ["D1", "L1", "N1", "OFF", "D2", "SN1", "OFF"],
+      day: ["D1", "D2", "D1", "D2", "OFF", "OFF"],
+      part: ["P1", "P2", "P3", "OFF", "P4", "OFF"],
+      office: ["O1", "O1", "O1", "O1", "O1", "OFF", "OFF"]
+    };
+    const rotation = rotations[autoFillRotation] ?? rotations.care;
+
+    setCells((prev) => {
+      const next = { ...prev };
+      visibleUsers.forEach((user, userIndex) => {
+        days.forEach((day, dayIndex) => {
+          const code = rotation[(userIndex + dayIndex) % rotation.length];
+          const pattern = patternsByCode[code] ?? workPatterns.find((item) => item.code === code);
+          if (pattern) next[toKey(user.id, day.dateStr)] = pattern.id;
+        });
+      });
+      return next;
+    });
+    setMessage("表示中の従業員へローテーションを自動配置しました。内容を確認して一括保存してください。");
   }
 
   async function save() {
@@ -440,11 +481,31 @@ export function ShiftMonthlyGrid({
               {importing ? "取込中..." : "Excel取込"}
             </button>
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={importCsv} className="hidden" />
+            <button type="button" onClick={() => setAutoFillOpen((open) => !open)} className="rounded-xl bg-purple-600 px-4 py-3 text-sm font-black text-white shadow-sm">
+              自動配置
+            </button>
             <button onClick={save} disabled={saving} className="rounded-xl bg-blue-600 px-6 py-3 font-black text-white shadow-sm disabled:opacity-60">
               {saving ? "保存中..." : "一括保存"}
             </button>
           </div>
         </div>
+
+        {autoFillOpen && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-purple-50 p-3">
+            <span className="text-sm font-black text-purple-900">表示中の従業員へ自動配置</span>
+            <select value={autoFillRotation} onChange={(e) => setAutoFillRotation(e.target.value)} className="rounded-xl border px-3 py-2 text-sm font-bold">
+              <option value="care">介護ローテ</option>
+              <option value="nurse">看護ローテ</option>
+              <option value="day">日勤中心</option>
+              <option value="part">時短パート</option>
+              <option value="office">事務</option>
+            </select>
+            <button type="button" onClick={autoFill} className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-black text-white">
+              配置する
+            </button>
+            <p className="text-xs font-bold text-purple-700">部署を選んでから使うと、その部署だけに配置できます。</p>
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {workPatterns.map((pattern) => (
@@ -461,7 +522,7 @@ export function ShiftMonthlyGrid({
         {message && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-700">{message}</p>}
       </section>
 
-      <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
+      <section className="overflow-hidden rounded-3xl bg-white shadow-sm" onMouseUp={() => setIsDragging(false)} onMouseLeave={() => setIsDragging(false)}>
         <div className="overflow-auto">
           <table className="min-w-max table-fixed border-collapse text-xs">
             <colgroup>
@@ -525,10 +586,25 @@ export function ShiftMonthlyGrid({
                     return (
                       <td key={d.dateStr} className="w-[58px] min-w-[58px] border p-1 text-center">
                         <button
-                          onClick={() => setCell(user.id, d.dateStr)}
+                          onMouseDown={(e) => {
+                            if (e.button !== 0) return;
+                            setIsDragging(true);
+                            setCell(user.id, d.dateStr);
+                            setContextMenu(null);
+                          }}
+                          onMouseEnter={() => {
+                            if (isDragging) setCell(user.id, d.dateStr);
+                          }}
+                          onClick={(e) => e.preventDefault()}
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            clearCell(user.id, d.dateStr);
+                            setIsDragging(false);
+                            setContextMenu({
+                              userId: user.id,
+                              date: d.dateStr,
+                              x: e.clientX,
+                              y: e.clientY
+                            });
                           }}
                           title={pattern ? `${pattern.code} ${pattern.name}` : "未設定"}
                           className={`h-10 w-10 rounded-md border text-sm font-black transition hover:scale-105 ${pattern ? pattern.colorClass : "bg-white text-slate-300"}`}
@@ -619,6 +695,35 @@ export function ShiftMonthlyGrid({
           ))}
         </div>
       </section>
+
+      {contextMenu && (
+        <div
+          className="fixed z-50 max-h-[360px] w-56 overflow-auto rounded-2xl border bg-white p-2 text-sm shadow-xl"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              clearCell(contextMenu.userId, contextMenu.date);
+              setContextMenu(null);
+            }}
+            className="mb-2 w-full rounded-xl bg-slate-100 px-3 py-2 text-left font-black text-slate-700 hover:bg-red-50 hover:text-red-700"
+          >
+            クリア
+          </button>
+          {workPatterns.map((pattern) => (
+            <button
+              key={pattern.id}
+              type="button"
+              onClick={() => applyContextPattern(pattern.id)}
+              className={`mb-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-black hover:ring-2 hover:ring-blue-200 ${pattern.colorClass}`}
+            >
+              <span>{pattern.code}</span>
+              <span className="truncate">{pattern.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
