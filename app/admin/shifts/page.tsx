@@ -64,27 +64,6 @@ async function withDbRetry<T>(read: () => Promise<T>, fallback: T, attempts = 3)
 }
 
 async function getShiftUsers(companyId: string) {
-  const usersWithPaidLeave = await withDbRetry(
-      () =>
-        prisma.user.findMany({
-          where: { companyId },
-          select: {
-            id: true,
-            name: true,
-            department: true,
-            createdAt: true,
-            paidLeaves: {
-              select: { usedDays: true },
-              take: 1
-            }
-          },
-          orderBy: [{ department: "asc" }, { createdAt: "asc" }]
-        }),
-      null
-    );
-
-  if (usersWithPaidLeave) return usersWithPaidLeave;
-
   const users = await withDbRetry(
       () =>
         prisma.user.findMany({
@@ -100,7 +79,7 @@ async function getShiftUsers(companyId: string) {
       []
     );
 
-  return users.map((user) => ({ ...user, paidLeaves: [] }));
+  return users;
 }
 
 export default async function ShiftsPage({ searchParams }: { searchParams: { ym?: string } }) {
@@ -151,6 +130,18 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     }),
     []
   );
+  const leaveRequests = await withDbRetry(
+    () => prisma.leaveRequest.findMany({
+      where: {
+        companyId: session.user.companyId,
+        status: "APPROVED",
+        targetDate: { gte: start, lt: end }
+      },
+      include: { leaveType: true },
+      orderBy: { targetDate: "asc" }
+    }),
+    []
+  );
 
   const initialShifts = shifts.map((s) => ({
     id: s.id,
@@ -181,7 +172,9 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
 
   const usersForGrid = users.map((u, index) => {
     const userLogs = attendanceLogs.filter((log) => log.userId === u.id);
-    const paidLeave = u.paidLeaves[0];
+    const userLeaveMinutes = leaveRequests
+      .filter((request) => request.userId === u.id)
+      .reduce((sum, request) => sum + (request.unit === "HOUR" ? Math.round(Number(request.hours ?? 0) * 60) : 8 * 60), 0);
     return {
       id: u.id,
       no: String(index + 1).padStart(3, "0"),
@@ -189,7 +182,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
       position: "",
       department: u.department ?? "-",
       actualWorkMinutes: actualWorkMinutes(userLogs),
-      paidLeaveUsedMinutes: Math.round((paidLeave?.usedDays ?? 0) * 8 * 60)
+      paidLeaveUsedMinutes: userLeaveMinutes
     };
   });
 

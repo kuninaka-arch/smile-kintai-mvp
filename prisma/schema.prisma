@@ -32,6 +32,7 @@ model Company {
   workPatterns WorkPattern[]
   shifts    Shift[]
   shiftEvents ShiftEvent[]
+  leaveRequests LeaveRequest[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -57,6 +58,7 @@ model User {
   shifts        Shift[]
   paidLeaves    PaidLeave[]
   correctionRequests AttendanceCorrectionRequest[]
+  leaveRequests LeaveRequest[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 }
@@ -223,9 +225,43 @@ model LeaveTypeMaster {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  leaveRequests LeaveRequest[]
 
   @@unique([companyId, code])
   @@index([companyId, sortOrder])
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LeaveRequestUnit {
+  FULL_DAY
+  HOUR
+}
+
+model LeaveRequest {
+  id            String             @id @default(cuid())
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
+  userId        String
+  user          User               @relation(fields: [userId], references: [id])
+  leaveTypeId   String
+  leaveType     LeaveTypeMaster    @relation(fields: [leaveTypeId], references: [id])
+  targetDate    DateTime
+  unit          LeaveRequestUnit   @default(FULL_DAY)
+  hours         Float?
+  reason        String
+  status        LeaveRequestStatus @default(PENDING)
+  adminComment  String?
+  approvedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([companyId, userId, targetDate])
+  @@index([companyId, status])
 }
 
 

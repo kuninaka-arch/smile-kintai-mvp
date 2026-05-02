@@ -71,7 +71,7 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
   const selectedUserId = searchParams.userId ?? filteredUsers[0]?.id ?? "";
   const selectedUser = filteredUsers.find((user) => user.id === selectedUserId) ?? filteredUsers[0] ?? null;
 
-  const [shifts, logs] = selectedUser
+  const [shifts, logs, leaveRequests] = selectedUser
     ? await Promise.all([
         prisma.shift.findMany({
           where: { companyId: session.user.companyId, userId: selectedUser.id, workDate: { gte: start, lt: end } },
@@ -81,11 +81,17 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
         prisma.attendanceLog.findMany({
           where: { companyId: session.user.companyId, userId: selectedUser.id, stampedAt: { gte: start, lt: end } },
           orderBy: { stampedAt: "asc" }
+        }).catch(() => []),
+        prisma.leaveRequest.findMany({
+          where: { companyId: session.user.companyId, userId: selectedUser.id, status: "APPROVED", targetDate: { gte: start, lt: end } },
+          include: { leaveType: true },
+          orderBy: { targetDate: "asc" }
         }).catch(() => [])
       ])
-    : [[], []];
+    : [[], [], []];
 
   const shiftByDate = new Map(shifts.map((shift) => [dateKey(shift.workDate.getFullYear(), shift.workDate.getMonth() + 1, shift.workDate.getDate()), shift]));
+  const leaveByDate = new Map(leaveRequests.map((request) => [dateKey(request.targetDate.getFullYear(), request.targetDate.getMonth() + 1, request.targetDate.getDate()), request]));
   const logsByDate = new Map<string, typeof logs>();
   for (const log of logs) {
     const key = toJaDateKey(log.stampedAt);
@@ -96,6 +102,7 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
     const day = index + 1;
     const key = dateKey(year, month, day);
     const shift = shiftByDate.get(key) ?? null;
+    const leaveRequest = leaveByDate.get(key) ?? null;
     const dayLogs = logsByDate.get(key) ?? [];
     const clockIn = dayLogs.find((log) => log.type === "CLOCK_IN");
     const clockOut = [...dayLogs].reverse().find((log) => log.type === "CLOCK_OUT");
@@ -111,11 +118,13 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
     else if (lateMinutes > 0) status = "LATE";
     else if (earlyMinutes > 0) status = "EARLY";
 
-    return { key, day, shift, dayLogs, clockIn, clockOut, actualMinutes, scheduleMinutes, lateMinutes, earlyMinutes, status };
+    const leaveMinutes = leaveRequest ? (leaveRequest.unit === "HOUR" ? Math.round(Number(leaveRequest.hours ?? 0) * 60) : 8 * 60) : 0;
+    return { key, day, shift, leaveRequest, dayLogs, clockIn, clockOut, actualMinutes, scheduleMinutes, leaveMinutes, lateMinutes, earlyMinutes, status };
   });
 
   const totalActual = rows.reduce((sum, row) => sum + row.actualMinutes, 0);
   const totalPlanned = rows.reduce((sum, row) => sum + row.scheduleMinutes, 0);
+  const totalLeave = rows.reduce((sum, row) => sum + row.leaveMinutes, 0);
   const workDays = rows.filter((row) => row.actualMinutes > 0).length;
   const scheduledDays = rows.filter((row) => row.scheduleMinutes > 0).length;
 
@@ -148,11 +157,12 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
         </header>
 
         <div className="mx-auto max-w-7xl px-5 py-6">
-          <div className="mb-6 grid gap-4 md:grid-cols-4">
+          <div className="mb-6 grid gap-4 md:grid-cols-5">
             <SummaryCard label="従業員" value={selectedUser?.name ?? "-"} />
             <SummaryCard label="予定日数" value={`${scheduledDays}日`} />
             <SummaryCard label="実勤務日数" value={`${workDays}日`} />
             <SummaryCard label="実勤務時間" value={minutesToHHMM(totalActual)} />
+            <SummaryCard label="休暇取得時間" value={minutesToHHMM(totalLeave)} />
           </div>
 
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
@@ -166,12 +176,13 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
               </Link>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[1180px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
                     <th className="p-4">日付</th>
                     <th className="p-4">状態</th>
                     <th className="p-4">予定</th>
+                    <th className="p-4">休暇</th>
                     <th className="p-4">出勤</th>
                     <th className="p-4">退勤</th>
                     <th className="p-4">予定時間</th>
@@ -191,6 +202,7 @@ export default async function EmployeeMonthlyPage({ searchParams }: { searchPara
                         </span>
                       </td>
                       <td className="p-4">{row.shift ? `${row.shift.patternCode ?? ""} ${row.shift.startTime}-${row.shift.endTime}` : "-"}</td>
+                      <td className="p-4">{row.leaveRequest ? `${row.leaveRequest.leaveType.name} ${minutesToHHMM(row.leaveMinutes)}` : "-"}</td>
                       <td className="p-4 font-bold">{row.clockIn ? formatJaTime(row.clockIn.stampedAt) : "-"}</td>
                       <td className="p-4 font-bold">{row.clockOut ? formatJaTime(row.clockOut.stampedAt) : "-"}</td>
                       <td className="p-4 font-bold">{minutesToHHMM(row.scheduleMinutes)}</td>

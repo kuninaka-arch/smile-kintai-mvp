@@ -22,11 +22,15 @@ export async function GET(req: Request) {
       attendanceLogs: {
         where: { stampedAt: { gte: start, lt: end } },
         orderBy: { stampedAt: "asc" }
+      },
+      leaveRequests: {
+        where: { status: "APPROVED", targetDate: { gte: start, lt: end } },
+        include: { leaveType: true }
       }
     }
   });
 
-  const lines = [["氏名", "所属", "出勤日数", "総労働時間", "残業時間"]];
+  const lines = [["氏名", "所属", "出勤日数", "総労働時間", "残業時間", "休暇取得時間"]];
 
   for (const user of users) {
     const byDate = new Map<string, typeof user.attendanceLogs>();
@@ -44,7 +48,10 @@ export async function GET(req: Request) {
     });
 
     const overtime = Math.max(0, total - days * 8 * 60);
-    lines.push([user.name, user.department ?? "", String(days), minutesToHHMM(total), minutesToHHMM(overtime)]);
+    const leaveMinutes = user.leaveRequests.reduce((sum, request) => {
+      return sum + (request.unit === "HOUR" ? Math.round(Number(request.hours ?? 0) * 60) : 8 * 60);
+    }, 0);
+    lines.push([user.name, user.department ?? "", String(days), minutesToHHMM(total), minutesToHHMM(overtime), minutesToHHMM(leaveMinutes)]);
   }
 
   const csv = lines.map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");

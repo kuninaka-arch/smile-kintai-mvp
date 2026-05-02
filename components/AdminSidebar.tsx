@@ -25,6 +25,7 @@ export function AdminSidebar({ active }: { active: string }) {
         {item("/admin/attendance-analysis", "勤怠分析", "attendance-analysis")}
         {item("/admin/employees", "社員管理", "employees")}
         {item("/admin/shifts", "シフト設定", "shifts")}
+        {item("/admin/leaves", "休暇申請承認", "leaves")}
         {item("/admin/corrections", "打刻修正申請", "corrections")}
         {item("/admin/gps", "GPS地図表示", "gps")}
         {item("/admin/masters", "各種マスタ管理", "masters")}

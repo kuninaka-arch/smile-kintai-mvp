@@ -31,7 +31,11 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         where: { stampedAt: { gte: start, lt: end } },
         orderBy: { stampedAt: "asc" }
       },
-      paidLeaves: true
+      paidLeaves: true,
+      leaveRequests: {
+        where: { status: "APPROVED", targetDate: { gte: start, lt: end } },
+        include: { leaveType: true }
+      }
     }
   });
 
@@ -50,12 +54,16 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     });
     const overtime = Math.max(0, total - days * 8 * 60);
     const leave = user.paidLeaves[0];
-    return { user, days, total, overtime, leaveRemain: leave ? leave.grantedDays - leave.usedDays : 0 };
+    const leaveMinutes = user.leaveRequests.reduce((sum, request) => {
+      return sum + (request.unit === "HOUR" ? Math.round(Number(request.hours ?? 0) * 60) : 8 * 60);
+    }, 0);
+    return { user, days, total, overtime, leaveMinutes, leaveRemain: leave ? leave.grantedDays - leave.usedDays : 0 };
   });
 
   const totalWorkMinutes = rows.reduce((sum, r) => sum + r.total, 0);
   const totalOvertime = rows.reduce((sum, r) => sum + r.overtime, 0);
   const totalDays = rows.reduce((sum, r) => sum + r.days, 0);
+  const totalLeaveMinutes = rows.reduce((sum, r) => sum + r.leaveMinutes, 0);
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -87,10 +95,11 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         </header>
 
         <div className="mx-auto max-w-7xl px-5 py-6">
-          <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <div className="mb-6 grid gap-4 md:grid-cols-4">
             <SummaryCard label="総出勤日数" value={`${totalDays}日`} />
             <SummaryCard label="総労働時間" value={minutesToHHMM(totalWorkMinutes)} />
             <SummaryCard label="総残業時間" value={minutesToHHMM(totalOvertime)} />
+            <SummaryCard label="休暇取得時間" value={minutesToHHMM(totalLeaveMinutes)} />
           </div>
 
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
@@ -99,7 +108,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               <p className="text-sm text-slate-500">給与ソフト連携用にCSV出力できます。</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[840px] text-sm">
+              <table className="w-full min-w-[940px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
                     <th className="p-4">氏名</th>
@@ -107,6 +116,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                     <th className="p-4">出勤日数</th>
                     <th className="p-4">総労働時間</th>
                     <th className="p-4">残業時間</th>
+                    <th className="p-4">休暇時間</th>
                     <th className="p-4">有給残数</th>
                   </tr>
                 </thead>
@@ -118,6 +128,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                       <td className="p-4 font-bold">{row.days}日</td>
                       <td className="p-4 font-bold text-blue-700">{minutesToHHMM(row.total)}</td>
                       <td className="p-4 font-bold text-red-600">{minutesToHHMM(row.overtime)}</td>
+                      <td className="p-4 font-bold text-slate-700">{minutesToHHMM(row.leaveMinutes)}</td>
                       <td className="p-4 font-bold">
                         <div>{row.leaveRemain}日</div>
                         <Link href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}&department=${encodeURIComponent(row.user.department ?? "-")}`} className="mt-2 inline-block text-xs font-black text-blue-700 underline">

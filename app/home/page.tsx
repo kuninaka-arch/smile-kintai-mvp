@@ -141,9 +141,10 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 function BottomNav({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 border-t bg-white/95 backdrop-blur">
-      <div className="mx-auto grid max-w-md grid-cols-4 px-2 py-2 text-center text-xs font-bold text-slate-500">
+      <div className="mx-auto grid max-w-md grid-cols-5 px-2 py-2 text-center text-xs font-bold text-slate-500">
         <Link className="rounded-2xl bg-blue-50 py-2 text-blue-700" href="/home">ホーム</Link>
         <Link className="py-2" href="/history">履歴</Link>
+        <Link className="py-2" href="/leaves">休暇</Link>
         <Link className="py-2" href="/corrections">申請</Link>
         {isAdmin ? <Link className="py-2" href="/admin">管理</Link> : <Link className="py-2" href="/api/auth/signout">ログアウト</Link>}
       </div>
