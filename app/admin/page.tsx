@@ -110,7 +110,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
           </div>
         </header>
 
-        <div className="mx-auto max-w-7xl px-5 py-6">
+        <div className="mx-auto flex max-w-7xl flex-col px-5 py-6">
           <section className="mb-6 rounded-[2rem] bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-6 text-white shadow-sm">
             <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
               <div>
@@ -138,7 +138,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
             <KpiCard label="未打刻" value={`${notClocked}名`} sub="出勤未確認" color="text-red-600" />
           </div>
 
-          <section className="mt-6">
+          <section className="order-3 mt-6">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black">管理メニュー</h2>
@@ -171,7 +171,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
             </div>
           </section>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="order-2 mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
             <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
               <div className="flex flex-col gap-4 border-b p-5 md:flex-row md:items-center md:justify-between">
                 <div>
