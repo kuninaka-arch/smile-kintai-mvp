@@ -34,6 +34,7 @@ export function AdminSidebar({ active }: { active: string }) {
         {item("/admin/masters/positions", "役職マスタ", "masters")}
         {item("/admin/masters/employment-types", "雇用区分マスタ", "masters")}
         {item("/admin/masters/roles", "権限マスタ", "masters")}
+        {item("/admin/masters/leave-types", "休暇種別マスタ", "masters")}
         {item("/admin/masters/work-patterns", "勤務パターンマスタ", "masters")}
         {item("/home", "打刻画面", "home")}
         <div className="pt-3">

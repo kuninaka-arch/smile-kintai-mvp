@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type MasterKind = "department" | "employmentType" | "position" | "role";
+type MasterKind = "department" | "employmentType" | "position" | "role" | "leaveType";
 
 export function MasterForm({
   kind,
@@ -17,6 +17,7 @@ export function MasterForm({
     code: string;
     name: string;
     description?: string | null;
+    allowHourly?: boolean;
     sortOrder: number;
     isActive: boolean;
   };
@@ -26,6 +27,7 @@ export function MasterForm({
   const [code, setCode] = useState(item?.code ?? "");
   const [name, setName] = useState(item?.name ?? "");
   const [description, setDescription] = useState(item?.description ?? "");
+  const [allowHourly, setAllowHourly] = useState(Boolean(item?.allowHourly));
   const [sortOrder, setSortOrder] = useState(String(item?.sortOrder ?? 0));
   const [isActive, setIsActive] = useState(item?.isActive ?? true);
   const [message, setMessage] = useState("");
@@ -34,7 +36,8 @@ export function MasterForm({
     department: "/api/admin/masters/departments",
     employmentType: "/api/admin/masters/employment-types",
     position: "/api/admin/masters/positions",
-    role: "/api/admin/masters/roles"
+    role: "/api/admin/masters/roles",
+    leaveType: "/api/admin/masters/leave-types"
   };
 
   async function submit(e: React.FormEvent) {
@@ -44,7 +47,7 @@ export function MasterForm({
     const res = await fetch(mode === "create" ? pathMap[kind] : `${pathMap[kind]}/${item?.id}`, {
       method: mode === "create" ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, name, description, sortOrder: Number(sortOrder), isActive })
+      body: JSON.stringify({ code, name, description, allowHourly, sortOrder: Number(sortOrder), isActive })
     });
 
     if (res.ok) {
@@ -53,6 +56,7 @@ export function MasterForm({
         setCode("");
         setName("");
         setDescription("");
+        setAllowHourly(false);
         setSortOrder("0");
         setIsActive(true);
       } else {
@@ -98,6 +102,12 @@ export function MasterForm({
       )}
       <Field label="名称" value={name} onChange={setName} />
       {kind === "role" && <Field label="説明" value={description} onChange={setDescription} required={false} />}
+      {kind === "leaveType" && (
+        <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold">
+          <input type="checkbox" checked={allowHourly} onChange={(e) => setAllowHourly(e.target.checked)} />
+          時間単位で取得できる
+        </label>
+      )}
       <Field label="表示順" value={sortOrder} onChange={setSortOrder} type="number" />
 
       <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold">
