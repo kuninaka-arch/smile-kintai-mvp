@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPeriodLock } from "@/lib/period-lock";
 
 function parseCsv(text: string) {
   const rows: string[][] = [];
@@ -49,6 +50,11 @@ export async function POST(req: Request) {
   const [year, month] = ym.split("-").map(Number);
   if (!year || !month || !csv) {
     return NextResponse.json({ error: "取込データが不正です。" }, { status: 400 });
+  }
+
+  const period = await getPeriodLock(session.user.companyId, ym);
+  if (period.locked) {
+    return NextResponse.json({ error: "締め済み期間のため、シフトは取り込めません。" }, { status: 423 });
   }
 
   const dayCount = new Date(year, month, 0).getDate();

@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 export function CompanyMasterForm({
   company
 }: {
-  company: { id: string; name: string; code: string };
+  company: { id: string; name: string; code: string; closingDay: number };
 }) {
   const router = useRouter();
   const [name, setName] = useState(company.name);
   const [code, setCode] = useState(company.code);
   const [address, setAddress] = useState("");
   const [tel, setTel] = useState("");
-  const [closingDay, setClosingDay] = useState("末日");
+  const [closingDay, setClosingDay] = useState(String(company.closingDay ?? 31));
   const [message, setMessage] = useState("");
 
   async function submit(e: React.FormEvent) {
@@ -48,10 +48,12 @@ export function CompanyMasterForm({
           onChange={(e) => setClosingDay(e.target.value)}
           className="mt-1 w-full rounded-xl border px-3 py-2"
         >
-          <option>末日</option>
-          <option>15日</option>
-          <option>20日</option>
-          <option>25日</option>
+          <option value="31">月末</option>
+          <option value="5">5日</option>
+          <option value="10">10日</option>
+          <option value="15">15日</option>
+          <option value="20">20日</option>
+          <option value="25">25日</option>
         </select>
       </label>
 

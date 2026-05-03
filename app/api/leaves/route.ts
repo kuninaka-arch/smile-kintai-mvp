@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { LeaveRequestUnit } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isDateLocked } from "@/lib/period-lock";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -24,12 +25,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "時間数を入力してください。" }, { status: 400 });
   }
 
+  const targetDate = new Date(`${body.targetDate}T00:00:00+09:00`);
+  if (await isDateLocked(session.user.companyId, targetDate)) {
+    return NextResponse.json({ error: "締め済み期間のため、休暇申請はできません。" }, { status: 423 });
+  }
+
   await prisma.leaveRequest.create({
     data: {
       companyId: session.user.companyId,
       userId: session.user.id,
       leaveTypeId: leaveType.id,
-      targetDate: new Date(`${body.targetDate}T00:00:00`),
+      targetDate,
       unit,
       hours,
       reason: body.reason

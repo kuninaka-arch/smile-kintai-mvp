@@ -4,6 +4,7 @@ import { AttendanceType } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatJaTime, typeLabel } from "@/lib/attendance";
+import { isDateLocked } from "@/lib/period-lock";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -14,6 +15,9 @@ export async function POST(req: Request) {
 
   if (!["CLOCK_IN", "CLOCK_OUT", "BREAK_START", "BREAK_END"].includes(type)) {
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+  }
+  if (await isDateLocked(session.user.companyId, new Date())) {
+    return NextResponse.json({ error: "締め済み期間のため、打刻できません。" }, { status: 423 });
   }
 
   const log = await prisma.attendanceLog.create({

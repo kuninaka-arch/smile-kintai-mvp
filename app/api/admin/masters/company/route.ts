@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizeClosingDay } from "@/lib/period-lock";
 
 export async function PUT(req: Request) {
   const session = await getServerSession(authOptions);
@@ -15,7 +16,8 @@ export async function PUT(req: Request) {
     where: { id: session.user.companyId },
     data: {
       name: body.name,
-      code: body.code
+      code: body.code,
+      closingDay: normalizeClosingDay(Number(body.closingDay))
     }
   });
 

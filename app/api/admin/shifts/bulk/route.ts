@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPeriodLock } from "@/lib/period-lock";
 
 function tokyoDate(date: string) {
   return new Date(`${date}T00:00:00+09:00`);
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const ym = body.ym as string;
+  const period = await getPeriodLock(session.user.companyId, ym);
+  if (period.locked) {
+    return NextResponse.json({ error: "締め済み期間のため、シフトは変更できません。" }, { status: 423 });
+  }
   const { start, end } = tokyoMonthRange(ym);
 
   const shifts = Array.isArray(body.shifts) ? body.shifts : [];

@@ -23,6 +23,7 @@ model Company {
   id        String   @id @default(cuid())
   name      String
   code      String   @unique
+  closingDay Int     @default(31)
   users     User[]
   departments Department[]
   employmentTypes EmploymentType[]
@@ -33,8 +34,30 @@ model Company {
   shifts    Shift[]
   shiftEvents ShiftEvent[]
   leaveRequests LeaveRequest[]
+  periodLocks AttendancePeriodLock[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AttendancePeriodLock {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  periodKey String
+  periodStart DateTime
+  periodEnd DateTime
+  closingDay Int
+  locked    Boolean  @default(false)
+  lockedAt  DateTime?
+  lockedByUserId String?
+  unlockedAt DateTime?
+  unlockedByUserId String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, periodKey])
+  @@index([companyId, periodStart, periodEnd])
 }
 
 model User {

@@ -2,17 +2,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { PeriodLockButtons } from "@/components/PeriodLockButtons";
 import { calcDailyWorkMinutes, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
+import { formatDateKey, getPeriodLock } from "@/lib/period-lock";
 
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const selectedDepartment = searchParams.department ?? "all";
-  const [year, month] = ym.split("-").map(Number);
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  const period = await getPeriodLock(session.user.companyId, ym);
+  const start = period.periodStart;
+  const end = period.periodEndExclusive;
 
   const departmentsSource = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
@@ -95,6 +97,19 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         </header>
 
         <div className="mx-auto max-w-7xl px-5 py-6">
+          <section className={`mb-6 rounded-3xl p-5 shadow-sm ${period.locked ? "bg-slate-900 text-white" : "bg-white"}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-bold opacity-80">勤怠締め</p>
+                <h2 className="mt-1 text-xl font-black">{period.locked ? "締め済み" : "未締め"}</h2>
+                <p className="mt-1 text-sm opacity-80">
+                  締め日: {period.closingDay >= 31 ? "月末" : `${period.closingDay}日`} / 対象期間: {formatDateKey(period.periodStart)} 〜 {formatDateKey(period.periodEnd)}
+                </p>
+              </div>
+              <PeriodLockButtons ym={ym} locked={period.locked} />
+            </div>
+          </section>
+
           <div className="mb-6 grid gap-4 md:grid-cols-4">
             <SummaryCard label="総出勤日数" value={`${totalDays}日`} />
             <SummaryCard label="総労働時間" value={minutesToHHMM(totalWorkMinutes)} />

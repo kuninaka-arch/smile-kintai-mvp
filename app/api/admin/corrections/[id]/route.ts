@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { CorrectionStatus } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isDateLocked } from "@/lib/period-lock";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -15,6 +16,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     where: { id: params.id, companyId: session.user.companyId }
   });
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (await isDateLocked(session.user.companyId, request.targetDate)) {
+    return NextResponse.json({ error: "締め済み期間のため、打刻修正申請は変更できません。" }, { status: 423 });
+  }
 
   await prisma.attendanceCorrectionRequest.update({
     where: { id: params.id },
