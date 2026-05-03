@@ -232,12 +232,12 @@ export function AdminSidebar({ active }: { active: string }) {
 
         <nav className="relative flex-1 space-y-5 overflow-y-auto p-4">
           <div>
-            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">MAIN</div>
+            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">業務メニュー</div>
             <div className="space-y-1">{mainItems.map((menuItem) => item(menuItem))}</div>
           </div>
 
           <div>
-            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">MASTER</div>
+            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">マスタ管理</div>
             <div className="space-y-1">{masterItems.map((menuItem) => item(menuItem))}</div>
           </div>
         </nav>
