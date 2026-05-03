@@ -48,6 +48,8 @@ type ContextMenuState = {
   y: number;
 } | null;
 
+type PatternCategory = "all" | "early" | "day" | "late" | "night" | "short" | "leave" | "other";
+
 function toKey(userId: string, date: string) {
   return `${userId}_${date}`;
 }
@@ -164,6 +166,17 @@ function isPaidLeavePattern(pattern: WorkPatternRow | null) {
   return `${pattern.code} ${pattern.name}`.includes("有休") || `${pattern.code} ${pattern.name}`.includes("有給");
 }
 
+function patternCategory(pattern: WorkPatternRow): PatternCategory {
+  const text = `${pattern.code} ${pattern.name}`.toLowerCase();
+  if (pattern.isHoliday || /off|paid|comp|special|childcare|maternity|bereavement|休|有休|代休|産休|育休|忌引/.test(text)) return "leave";
+  if (/早|early|^e/.test(text)) return "early";
+  if (/遅|late|^l/.test(text)) return "late";
+  if (/夜|準夜|深夜|night|^n|^sn|^mn/.test(text)) return "night";
+  if (/時短|part|パート|^p/.test(text)) return "short";
+  if (/通常|日勤|day|^a|^d/.test(text)) return "day";
+  return "other";
+}
+
 export function ShiftMonthlyGrid({
   ym,
   year,
@@ -193,12 +206,31 @@ export function ShiftMonthlyGrid({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [autoFillOpen, setAutoFillOpen] = useState(false);
   const [autoFillRotation, setAutoFillRotation] = useState("care");
+  const [patternPaletteOpen, setPatternPaletteOpen] = useState(false);
+  const [patternSearch, setPatternSearch] = useState("");
+  const [patternCategoryFilter, setPatternCategoryFilter] = useState<PatternCategory>("all");
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
 
   const patternsById = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.id, pattern])), [workPatterns]);
   const patternsByCode = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.code, pattern])), [workPatterns]);
+  const selectedPattern = selectedPatternId ? patternsById[selectedPatternId] ?? null : null;
+  const favoritePatterns = useMemo(() => {
+    const preferredCodes = ["A", "D1", "OFF", "PAID", "E1", "L1", "N1", "P1"];
+    const picked = preferredCodes
+      .map((code) => workPatterns.find((pattern) => pattern.code === code))
+      .filter((pattern): pattern is WorkPatternRow => Boolean(pattern));
+    return picked.length > 0 ? picked.slice(0, 8) : workPatterns.slice(0, 8);
+  }, [workPatterns]);
+  const filteredPatterns = useMemo(() => {
+    const query = patternSearch.trim().toLowerCase();
+    return workPatterns.filter((pattern) => {
+      const matchesCategory = patternCategoryFilter === "all" || patternCategory(pattern) === patternCategoryFilter;
+      const text = `${pattern.code} ${pattern.name} ${pattern.startTime} ${pattern.endTime}`.toLowerCase();
+      return matchesCategory && (!query || text.includes(query));
+    });
+  }, [patternCategoryFilter, patternSearch, workPatterns]);
   const holidays = useMemo(() => japaneseHolidayMap(year), [year]);
 
   const days = useMemo(() => {
@@ -513,16 +545,101 @@ export function ShiftMonthlyGrid({
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {workPatterns.map((pattern) => (
-            <button
-              key={pattern.id}
-              onClick={() => setSelectedPatternId(pattern.id)}
-              className={`rounded-xl border px-4 py-2 text-sm font-black ${selectedPatternId === pattern.id ? "border-blue-600 ring-2 ring-blue-100" : "border-slate-200"} ${pattern.colorClass}`}
-            >
-              {pattern.code} {pattern.name} {pattern.startTime}-{pattern.endTime}
-            </button>
-          ))}
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="shrink-0 text-sm font-black text-slate-600">選択中</span>
+              {selectedPattern ? (
+                <div className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-black ${selectedPattern.colorClass}`}>
+                  <span className="shrink-0">{selectedPattern.code}</span>
+                  <span className="truncate">{selectedPattern.name}</span>
+                  <span className="shrink-0 text-xs opacity-80">{selectedPattern.startTime}-{selectedPattern.endTime}</span>
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-white px-3 py-2 text-sm font-bold text-slate-500">未選択</div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPatternPaletteOpen((open) => !open)}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-slate-700"
+              >
+                シフトを選択
+              </button>
+              {favoritePatterns.map((pattern) => (
+                <button
+                  key={pattern.id}
+                  type="button"
+                  onClick={() => setSelectedPatternId(pattern.id)}
+                  className={`rounded-xl border px-3 py-2 text-sm font-black ${selectedPatternId === pattern.id ? "border-blue-600 ring-2 ring-blue-200" : "border-slate-200"} ${pattern.colorClass}`}
+                  title={`${pattern.code} ${pattern.name} ${pattern.startTime}-${pattern.endTime}`}
+                >
+                  {pattern.code}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {patternPaletteOpen && (
+            <div className="mt-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <input
+                  value={patternSearch}
+                  onChange={(e) => setPatternSearch(e.target.value)}
+                  placeholder="コード・名称・時刻で検索"
+                  className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm font-bold"
+                />
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    ["all", "すべて"],
+                    ["early", "早出"],
+                    ["day", "日勤"],
+                    ["late", "遅番"],
+                    ["night", "夜勤"],
+                    ["short", "時短"],
+                    ["leave", "休暇"],
+                    ["other", "その他"]
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPatternCategoryFilter(value as PatternCategory)}
+                      className={`rounded-lg px-3 py-2 text-xs font-black ${
+                        patternCategoryFilter === value ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 max-h-72 overflow-auto pr-1">
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {filteredPatterns.map((pattern) => (
+                    <button
+                      key={pattern.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPatternId(pattern.id);
+                        setPatternPaletteOpen(false);
+                      }}
+                      className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-black hover:ring-2 hover:ring-blue-200 ${pattern.colorClass}`}
+                    >
+                      <span className="shrink-0">{pattern.code}</span>
+                      <span className="truncate">{pattern.name}</span>
+                      <span className="ml-auto shrink-0 text-xs opacity-75">{pattern.startTime}-{pattern.endTime}</span>
+                    </button>
+                  ))}
+                </div>
+                {filteredPatterns.length === 0 && (
+                  <p className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">該当するシフトがありません。</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {message && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-700">{message}</p>}
@@ -689,9 +806,18 @@ export function ShiftMonthlyGrid({
       </section>
 
       <section className="rounded-3xl bg-white p-4 shadow-sm">
-        <h3 className="font-black">凡例</h3>
-        <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-          {workPatterns.map((pattern) => (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-black">よく使うシフト</h3>
+          <button
+            type="button"
+            onClick={() => setPatternPaletteOpen(true)}
+            className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
+          >
+            全{workPatterns.length}件から選択
+          </button>
+        </div>
+        <div className="mt-3 grid gap-2 text-sm md:grid-cols-4">
+          {favoritePatterns.map((pattern) => (
             <div key={pattern.id} className="flex items-center gap-2">
               <span className={`inline-flex h-8 w-8 items-center justify-center rounded-md border font-black ${pattern.colorClass}`}>
                 {pattern.code}
