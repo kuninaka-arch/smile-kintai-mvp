@@ -12,7 +12,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
     prisma.user.findMany({
       where: { companyId: session.user.companyId },
       include: { roleMaster: true, positionMaster: true },
-      orderBy: { createdAt: "asc" }
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }]
     }),
     prisma.roleMaster.findMany({
       where: { companyId: session.user.companyId, isActive: true },
@@ -77,10 +77,11 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
               <p className="text-sm text-slate-500">{filteredUsers.length}名を表示中</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-sm">
+              <table className="w-full min-w-[940px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
                     <th className="p-4">氏名</th>
+                    <th className="p-4">表示順</th>
                     <th className="p-4">メール</th>
                     <th className="p-4">所属</th>
                     <th className="p-4">役職</th>
@@ -92,6 +93,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
                   {filteredUsers.map((user) => (
                     <tr key={user.id} className="border-t">
                       <td className="p-4 font-black">{user.name}</td>
+                      <td className="p-4 font-black text-slate-500">{user.displayOrder}</td>
                       <td className="p-4">{user.email}</td>
                       <td className="p-4">{user.department ?? "-"}</td>
                       <td className="p-4">{user.positionMaster?.name ?? "-"}</td>
@@ -108,6 +110,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
                             name: user.name,
                             email: user.email,
                             department: user.department ?? "",
+                            displayOrder: user.displayOrder,
                             role: user.role,
                             roleMasterId: user.roleMasterId,
                             positionMasterId: user.positionMasterId

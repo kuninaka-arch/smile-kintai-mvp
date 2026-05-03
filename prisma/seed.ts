@@ -342,7 +342,8 @@ async function main() {
       positionMasterId: positionMasters[0].id,
       department: adminDepartment.name,
       departmentId: adminDepartment.id,
-      employmentTypeId: fullTime.id
+      employmentTypeId: fullTime.id,
+      displayOrder: 1
     },
     create: {
       companyId: company.id,
@@ -354,7 +355,8 @@ async function main() {
       positionMasterId: positionMasters[0].id,
       department: adminDepartment.name,
       departmentId: adminDepartment.id,
-      employmentTypeId: fullTime.id
+      employmentTypeId: fullTime.id,
+      displayOrder: 1
     }
   });
 
@@ -367,7 +369,8 @@ async function main() {
       positionMasterId: positionMasters[5].id,
       department: employeeDepartment.name,
       departmentId: employeeDepartment.id,
-      employmentTypeId: fullTime.id
+      employmentTypeId: fullTime.id,
+      displayOrder: 2
     },
     create: {
       companyId: company.id,
@@ -379,7 +382,8 @@ async function main() {
       positionMasterId: positionMasters[5].id,
       department: employeeDepartment.name,
       departmentId: employeeDepartment.id,
-      employmentTypeId: fullTime.id
+      employmentTypeId: fullTime.id,
+      displayOrder: 2
     }
   });
 
@@ -406,7 +410,8 @@ async function main() {
         positionMasterId: position.id,
         department: department.name,
         departmentId: department.id,
-        employmentTypeId: employmentType.id
+        employmentTypeId: employmentType.id,
+        displayOrder: i + 3
       },
       create: {
         companyId: company.id,
@@ -418,7 +423,8 @@ async function main() {
         positionMasterId: position.id,
         department: department.name,
         departmentId: department.id,
-        employmentTypeId: employmentType.id
+        employmentTypeId: employmentType.id,
+        displayOrder: i + 3
       }
     });
 

@@ -24,7 +24,7 @@ export function EmployeeForm({
   positions
 }: {
   mode: "create" | "edit";
-  user?: { id: string; name: string; email: string; department: string; role: Role; roleMasterId: string | null; positionMasterId: string | null };
+  user?: { id: string; name: string; email: string; department: string; role: Role; roleMasterId: string | null; positionMasterId: string | null; displayOrder: number };
   roleMasters: RoleMasterOption[];
   positions: PositionOption[];
 }) {
@@ -33,6 +33,7 @@ export function EmployeeForm({
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [department, setDepartment] = useState(user?.department ?? "");
+  const [displayOrder, setDisplayOrder] = useState(String(user?.displayOrder ?? ""));
   const [positionMasterId, setPositionMasterId] = useState(user?.positionMasterId ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "EMPLOYEE");
   const [roleMasterId, setRoleMasterId] = useState(user?.roleMasterId ?? roleMasters.find((item) => item.code === (user?.role ?? "EMPLOYEE"))?.id ?? "");
@@ -52,7 +53,7 @@ export function EmployeeForm({
     const res = await fetch(mode === "create" ? "/api/admin/employees" : `/api/admin/employees/${user?.id}`, {
       method: mode === "create" ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, department, positionMasterId, role, roleMasterId, password })
+      body: JSON.stringify({ name, email, department, displayOrder, positionMasterId, role, roleMasterId, password })
     });
 
     if (res.ok) {
@@ -61,6 +62,7 @@ export function EmployeeForm({
         setName("");
         setEmail("");
         setDepartment("");
+        setDisplayOrder("");
         setPositionMasterId("");
         setPassword("password123");
       }
@@ -93,6 +95,7 @@ export function EmployeeForm({
       <Field label="氏名" value={name} onChange={setName} />
       <Field label="メール" value={email} onChange={setEmail} type="email" />
       <Field label="所属" value={department} onChange={setDepartment} />
+      <Field label="表示順" value={displayOrder} onChange={setDisplayOrder} type="number" required={false} />
       <label className="block">
         <span className="text-xs font-black text-slate-500">役職</span>
         <select value={positionMasterId} onChange={(e) => setPositionMasterId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2">
@@ -128,12 +131,14 @@ function Field({
   label,
   value,
   onChange,
-  type = "text"
+  type = "text",
+  required = true
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block">
@@ -143,7 +148,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-xl border px-3 py-2"
-        required
+        required={required}
       />
     </label>
   );

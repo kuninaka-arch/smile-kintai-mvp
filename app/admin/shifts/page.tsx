@@ -85,9 +85,11 @@ async function getShiftUsers(companyId: string) {
             id: true,
             name: true,
             department: true,
+            displayOrder: true,
+            positionMaster: { select: { name: true } },
             createdAt: true
           },
-          orderBy: [{ department: "asc" }, { createdAt: "asc" }]
+          orderBy: [{ displayOrder: "asc" }, { department: "asc" }, { createdAt: "asc" }]
         }),
       []
     );
@@ -191,8 +193,9 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
       id: u.id,
       no: String(index + 1).padStart(3, "0"),
       name: u.name,
-      position: "",
+      position: u.positionMaster?.name ?? "",
       department: u.department ?? "-",
+      displayOrder: u.displayOrder,
       actualWorkMinutes: actualWorkMinutes(userLogs),
       paidLeaveUsedMinutes: userLeaveMinutes
     };

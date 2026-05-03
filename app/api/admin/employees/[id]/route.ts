@@ -27,12 +27,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       })
     : null;
 
+  const displayOrder = Number.parseInt(String(body.displayOrder ?? "0"), 10);
+
   await prisma.user.update({
     where: { id: params.id },
     data: {
       name: body.name,
       email: body.email,
       department: body.department || null,
+      displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       positionMasterId: positionMaster?.id ?? null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null

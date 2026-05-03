@@ -30,12 +30,14 @@ export async function POST(req: Request) {
     : null;
 
   const passwordHash = await bcrypt.hash(body.password, 10);
+  const displayOrder = Number.parseInt(String(body.displayOrder ?? "0"), 10);
   const user = await prisma.user.create({
     data: {
       companyId: session.user.companyId,
       name: body.name,
       email: body.email,
       department: body.department || null,
+      displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       positionMasterId: positionMaster?.id ?? null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null,

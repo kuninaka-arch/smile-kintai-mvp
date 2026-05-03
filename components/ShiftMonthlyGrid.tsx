@@ -10,6 +10,7 @@ type UserRow = {
   name: string;
   position: string;
   department: string;
+  displayOrder: number;
   actualWorkMinutes: number;
   paidLeaveUsedMinutes: number;
 };
@@ -202,6 +203,7 @@ export function ShiftMonthlyGrid({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPatternId, setSelectedPatternId] = useState(workPatterns[0]?.id ?? "");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [sortMode, setSortMode] = useState("displayOrder");
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [autoFillOpen, setAutoFillOpen] = useState(false);
@@ -281,9 +283,22 @@ export function ShiftMonthlyGrid({
   const [events, setEvents] = useState<Record<string, string>>(initialEventMap);
 
   const visibleUsers = useMemo(() => {
-    if (selectedDepartment === "all") return users;
-    return users.filter((user) => user.department === selectedDepartment);
-  }, [selectedDepartment, users]);
+    const filtered = selectedDepartment === "all" ? users : users.filter((user) => user.department === selectedDepartment);
+    return [...filtered].sort((a, b) => {
+      if (sortMode === "name") return a.name.localeCompare(b.name, "ja");
+      if (sortMode === "department") {
+        const departmentCompare = a.department.localeCompare(b.department, "ja");
+        if (departmentCompare !== 0) return departmentCompare;
+      }
+      if (sortMode === "position") {
+        const positionCompare = a.position.localeCompare(b.position, "ja");
+        if (positionCompare !== 0) return positionCompare;
+      }
+      const orderCompare = (a.displayOrder || 0) - (b.displayOrder || 0);
+      if (orderCompare !== 0) return orderCompare;
+      return a.name.localeCompare(b.name, "ja");
+    });
+  }, [selectedDepartment, sortMode, users]);
   const showDepartmentColumn = selectedDepartment === "all";
   const frozenColumnCount = showDepartmentColumn ? 4 : 3;
 
@@ -506,6 +521,12 @@ export function ShiftMonthlyGrid({
               {departments.map((department) => (
                 <option key={department} value={department}>{department}</option>
               ))}
+            </select>
+            <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} className="rounded-xl border px-4 py-3 text-sm font-bold">
+              <option value="displayOrder">表示順</option>
+              <option value="name">氏名順</option>
+              <option value="department">部署順</option>
+              <option value="position">役職順</option>
             </select>
             <button type="button" onClick={downloadCsv} className="rounded-xl bg-green-600 px-4 py-3 text-sm font-black text-white shadow-sm">
               Excel出力
