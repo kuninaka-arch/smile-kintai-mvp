@@ -6,8 +6,11 @@ import { minutesToHHMM, calcDailyWorkMinutes, dateToJaMinutes, formatJaTime, toJ
 
 type Status = "OK" | "LATE" | "EARLY" | "MISSING_IN" | "MISSING_OUT" | "NO_SHIFT";
 
-function parseDate(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`);
+function tokyoDateRange(dateStr: string) {
+  const start = new Date(`${dateStr}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
 }
 
 function toMinutes(time: string) {
@@ -43,15 +46,13 @@ export default async function AttendanceAnalysisPage({ searchParams }: { searchP
   const dateStr = searchParams.date ?? todayStr;
   const graceMinutes = Number(searchParams.grace ?? 5);
 
-  const targetStart = parseDate(dateStr);
-  const targetEnd = new Date(targetStart);
-  targetEnd.setDate(targetEnd.getDate() + 1);
+  const { start: targetStart, end: targetEnd } = tokyoDateRange(dateStr);
 
   const users = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
     include: {
       shifts: {
-        where: { workDate: targetStart },
+        where: { workDate: { gte: targetStart, lt: targetEnd } },
         include: { workPattern: true }
       },
       attendanceLogs: {
