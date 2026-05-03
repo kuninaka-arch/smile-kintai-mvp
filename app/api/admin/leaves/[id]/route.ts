@@ -11,6 +11,23 @@ function colorForLeave(code: string) {
   return "bg-violet-200 text-slate-900";
 }
 
+function tokyoDateKey(date: Date) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
+function tokyoDateRange(date: Date) {
+  const key = tokyoDateKey(date);
+  const start = new Date(`${key}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { key, start, end };
+}
+
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,10 +92,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       });
 
+      const { start, end } = tokyoDateRange(request.targetDate);
       const existingShift = await tx.shift.findFirst({
-        where: { companyId: request.companyId, userId: request.userId, workDate: request.targetDate }
+        where: {
+          companyId: request.companyId,
+          userId: request.userId,
+          workDate: { gte: start, lt: end }
+        },
+        orderBy: { workDate: "asc" }
       });
       const shiftData = {
+        workDate: start,
         startTime: "00:00",
         endTime: "00:00",
         breakMinutes: 0,
@@ -87,12 +111,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       };
       if (existingShift) {
         await tx.shift.update({ where: { id: existingShift.id }, data: shiftData });
+        await tx.shift.deleteMany({
+          where: {
+            companyId: request.companyId,
+            userId: request.userId,
+            workDate: { gte: start, lt: end },
+            id: { not: existingShift.id }
+          }
+        });
       } else {
         await tx.shift.create({
           data: {
             companyId: request.companyId,
             userId: request.userId,
-            workDate: request.targetDate,
             ...shiftData
           }
         });

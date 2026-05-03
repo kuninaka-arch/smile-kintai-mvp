@@ -3,6 +3,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+function tokyoDate(date: string) {
+  return new Date(`${date}T00:00:00+09:00`);
+}
+
+function tokyoMonthRange(ym: string) {
+  const [year, month] = ym.split("-").map(Number);
+  const start = tokyoDate(`${year}-${String(month).padStart(2, "0")}-01`);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const end = tokyoDate(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01`);
+  return { start, end };
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
@@ -11,9 +24,7 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const ym = body.ym as string;
-  const [year, month] = ym.split("-").map(Number);
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  const { start, end } = tokyoMonthRange(ym);
 
   const shifts = Array.isArray(body.shifts) ? body.shifts : [];
   const events = Array.isArray(body.events) ? body.events : [];
@@ -42,7 +53,7 @@ export async function POST(req: Request) {
         return {
           companyId: session.user.companyId,
           userId: s.userId,
-          workDate: new Date(`${s.workDate}T00:00:00`),
+          workDate: tokyoDate(s.workDate),
           startTime: pattern?.startTime ?? s.startTime,
           endTime: pattern?.endTime ?? s.endTime,
           breakMinutes: Number(pattern?.breakMinutes ?? s.breakMinutes ?? 60),
@@ -56,7 +67,7 @@ export async function POST(req: Request) {
   const eventData = events
     .map((event: any) => ({
       companyId: session.user.companyId,
-      workDate: new Date(`${event.workDate}T00:00:00`),
+      workDate: tokyoDate(event.workDate),
       title: String(event.title ?? "").trim()
     }))
     .filter((event: any) => event.title);

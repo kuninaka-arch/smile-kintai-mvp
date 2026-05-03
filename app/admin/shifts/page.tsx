@@ -9,7 +9,20 @@ function daysInMonth(year: number, month: number) {
 }
 
 function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
+function tokyoMonthRange(year: number, month: number) {
+  const start = new Date(`${year}-${String(month).padStart(2, "0")}-01T00:00:00+09:00`);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+09:00`);
+  return { start, end };
 }
 
 function minutesBetween(startTime: string, endTime: string, breakMinutes = 0) {
@@ -88,8 +101,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [year, month] = ym.split("-").map(Number);
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  const { start, end } = tokyoMonthRange(year, month);
   const dayCount = daysInMonth(year, month);
 
   const users = await getShiftUsers(session.user.companyId);

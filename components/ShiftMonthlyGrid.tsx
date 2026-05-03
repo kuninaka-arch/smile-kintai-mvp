@@ -232,7 +232,13 @@ export function ShiftMonthlyGrid({
             pattern.breakMinutes === shift.breakMinutes
         );
 
-      if (matchedPattern) map[toKey(shift.userId, shift.date)] = matchedPattern.id;
+      if (matchedPattern) {
+        const key = toKey(shift.userId, shift.date);
+        const currentPattern = map[key] ? patternsById[map[key]] ?? null : null;
+        if (!currentPattern || matchedPattern.isHoliday || !currentPattern.isHoliday) {
+          map[key] = matchedPattern.id;
+        }
+      }
     }
     return map;
   }, [initialShifts, patternsByCode, patternsById, workPatterns]);
