@@ -196,15 +196,16 @@ export function AdminSidebar({ active }: { active: string }) {
     return (
       <Link
         href={href}
-        className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+        className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-2.5 text-sm font-black transition ${
           isActive
-            ? "bg-white text-slate-950 shadow-lg shadow-blue-950/20"
+            ? "bg-gradient-to-r from-blue-600/95 via-blue-500/80 to-cyan-500/60 text-white shadow-lg shadow-blue-950/30 ring-1 ring-white/15"
             : "text-slate-300 hover:bg-white/10 hover:text-white"
         }`}
       >
+        {isActive && <span className="absolute left-0 top-2 h-8 w-1 rounded-r-full bg-cyan-200" />}
         <span
           className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
-            isActive ? "bg-blue-600 text-white" : "bg-white/10 text-slate-200 group-hover:bg-blue-500"
+            isActive ? "bg-white/20 text-white ring-1 ring-white/20" : "bg-white/10 text-slate-200 group-hover:bg-blue-500"
           }`}
         >
           <MenuIcon name={icon} />
