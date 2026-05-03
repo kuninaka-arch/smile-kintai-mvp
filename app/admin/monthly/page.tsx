@@ -171,10 +171,11 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               <h2 className="text-lg font-black">社員別集計</h2>
               <p className="text-sm text-slate-500">シフト予定、打刻実績、承認済み休暇をもとに集計します。</p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[68vh] overflow-auto">
               <table className="w-full min-w-[1680px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
+                    <th className="sticky left-0 z-20 bg-slate-50 p-4 shadow-[1px_0_0_#e2e8f0]">明細</th>
                     <th className="p-4">氏名</th>
                     <th className="p-4">所属</th>
                     <th className="p-4">出勤日数</th>
@@ -191,12 +192,19 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                     <th className="p-4">準夜勤</th>
                     <th className="p-4">宿直</th>
                     <th className="p-4">有給残</th>
-                    <th className="p-4">明細</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.user.id} className="border-t hover:bg-slate-50">
+                    <tr key={row.user.id} className="group border-t hover:bg-slate-50">
+                      <td className="sticky left-0 z-10 bg-white p-4 shadow-[1px_0_0_#e2e8f0] group-hover:bg-slate-50">
+                        <Link
+                          href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}&department=${encodeURIComponent(row.user.department ?? "-")}`}
+                          className="inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 ring-1 ring-blue-100 hover:bg-blue-100"
+                        >
+                          明細
+                        </Link>
+                      </td>
                       <td className="p-4 font-black">{row.user.name}</td>
                       <td className="p-4">{row.user.department ?? "-"}</td>
                       <td className="p-4 font-bold">{row.metrics.workDays}日</td>
@@ -213,14 +221,6 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
                       <td className="p-4 font-bold">{row.metrics.semiNightShiftCount}回</td>
                       <td className="p-4 font-bold">{row.metrics.lodgingShiftCount}回</td>
                       <td className="p-4 font-bold">{row.leaveRemain}日</td>
-                      <td className="p-4">
-                        <Link
-                          href={`/admin/employee-monthly?userId=${row.user.id}&ym=${ym}&department=${encodeURIComponent(row.user.department ?? "-")}`}
-                          className="text-xs font-black text-blue-700 underline"
-                        >
-                          明細
-                        </Link>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
