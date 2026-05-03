@@ -646,7 +646,7 @@ export function ShiftMonthlyGrid({
       </section>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-sm" onMouseUp={() => setIsDragging(false)} onMouseLeave={() => setIsDragging(false)}>
-        <div className="overflow-auto">
+        <div className="max-h-[calc(100vh-260px)] min-h-[420px] overflow-auto">
           <table className="min-w-max table-fixed border-collapse text-xs">
             <colgroup>
               <col className="w-[54px]" />
@@ -667,30 +667,30 @@ export function ShiftMonthlyGrid({
             </colgroup>
             <thead>
               <tr className="bg-slate-50">
-                <th className="sticky left-0 z-20 w-[54px] min-w-[54px] border bg-slate-50 p-2 text-left">番号</th>
-                <th className="sticky left-[54px] z-20 w-[90px] min-w-[90px] border bg-slate-50 p-2 text-left">役職</th>
-                <th className="sticky left-[144px] z-20 w-[126px] min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
+                <th className="sticky left-0 top-0 z-30 w-[54px] min-w-[54px] border bg-slate-50 p-2 text-left">番号</th>
+                <th className="sticky left-[54px] top-0 z-30 w-[90px] min-w-[90px] border bg-slate-50 p-2 text-left">役職</th>
+                <th className="sticky left-[144px] top-0 z-30 w-[126px] min-w-[126px] border bg-slate-50 p-2 text-left">氏名</th>
                 {showDepartmentColumn && (
-                  <th className="sticky left-[270px] z-20 w-[110px] min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
+                  <th className="sticky left-[270px] top-0 z-30 w-[110px] min-w-[110px] border bg-slate-50 p-2 text-left">所属</th>
                 )}
                 {days.map((d) => (
                   <th
                     key={d.dateStr}
                     title={d.holidayName || undefined}
-                    className={`w-[58px] min-w-[58px] border p-1 text-center ${d.isHoliday || d.isSunday ? "bg-red-50 text-red-600" : d.isSaturday ? "bg-blue-50 text-blue-600" : "text-slate-600"}`}
+                    className={`sticky top-0 z-20 w-[58px] min-w-[58px] border p-1 text-center ${d.isHoliday || d.isSunday ? "bg-red-50 text-red-600" : d.isSaturday ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-600"}`}
                   >
                     <div>{d.day}</div>
                     <div>{d.label}</div>
                     {d.isHoliday && <div className="text-[10px] font-black">祝</div>}
                   </th>
                 ))}
-                <th className="border bg-slate-50 p-2 text-center">勤務時間</th>
-                <th className="border bg-slate-50 p-2 text-center">勤務予定時間</th>
-                <th className="border bg-slate-50 p-2 text-center">有休消化時間</th>
-                <th className="border bg-slate-50 p-2 text-center">有休予定時間</th>
-                <th className="border bg-slate-50 p-2 text-center">シフト回数</th>
+                <th className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">勤務時間</th>
+                <th className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">勤務予定時間</th>
+                <th className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">有休消化時間</th>
+                <th className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">有休予定時間</th>
+                <th className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">シフト回数</th>
                 {workPatterns.map((pattern) => (
-                  <th key={pattern.id} className="border bg-slate-50 p-2 text-center">{pattern.name}</th>
+                  <th key={pattern.id} className="sticky top-0 z-20 border bg-slate-50 p-2 text-center">{pattern.name}</th>
                 ))}
               </tr>
             </thead>
