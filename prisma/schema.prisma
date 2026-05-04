@@ -60,6 +60,7 @@ model Company {
   qualificationMasters QualificationMaster[]
   careQualificationRules CareQualificationRule[]
   auditLogs AuditLog[]
+  reportExportHistories ReportExportHistory[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -112,10 +113,27 @@ model User {
   correctionRequests AttendanceCorrectionRequest[]
   leaveRequests LeaveRequest[]
   qualifications UserQualification[]
+  reportExportHistories ReportExportHistory[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   @@index([companyId, displayOrder])
+}
+
+model ReportExportHistory {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  reportType  String
+  fileType    String
+  targetMonth String
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, reportType, targetMonth])
+  @@index([userId, createdAt])
 }
 
 model AttendanceLog {
