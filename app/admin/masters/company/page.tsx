@@ -7,6 +7,12 @@ import { CompanyMasterForm } from "@/components/CompanyMasterForm";
 export default async function CompanyMasterPage() {
   const session = await requireAdmin();
   const company = await prisma.company.findUniqueOrThrow({ where: { id: session.user.companyId } });
+  const currentUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, roleMaster: { select: { code: true } } }
+  });
+  const roleCode = currentUser?.roleMaster?.code?.toLowerCase();
+  const canEditIndustry = currentUser?.role === "ADMIN" && ["admin", "system_admin", "company_admin"].includes(roleCode ?? "admin");
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -21,7 +27,7 @@ export default async function CompanyMasterPage() {
         </header>
         <div className="mx-auto max-w-3xl px-5 py-6">
           <section className="rounded-3xl bg-white p-6 shadow-sm">
-            <CompanyMasterForm company={company} />
+            <CompanyMasterForm company={company} canEditIndustry={canEditIndustry} />
           </section>
         </div>
       </section>

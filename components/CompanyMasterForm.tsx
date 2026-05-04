@@ -3,10 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const industryOptions = [
+  { value: "general", label: "general（一般）" },
+  { value: "care", label: "care（介護施設）" },
+  { value: "restaurant", label: "restaurant（飲食店）" },
+  { value: "cleaning", label: "cleaning（清掃会社）" },
+  { value: "construction", label: "construction（建築業）" }
+] as const;
+
 export function CompanyMasterForm({
-  company
+  company,
+  canEditIndustry
 }: {
-  company: { id: string; name: string; code: string; closingDay: number };
+  company: { id: string; name: string; code: string; closingDay: number; industryType: string };
+  canEditIndustry: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(company.name);
@@ -14,6 +24,7 @@ export function CompanyMasterForm({
   const [address, setAddress] = useState("");
   const [tel, setTel] = useState("");
   const [closingDay, setClosingDay] = useState(String(company.closingDay ?? 31));
+  const [industryType, setIndustryType] = useState(company.industryType ?? "general");
   const [message, setMessage] = useState("");
 
   async function submit(e: React.FormEvent) {
@@ -23,14 +34,15 @@ export function CompanyMasterForm({
     const res = await fetch("/api/admin/masters/company", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, code, address, tel, closingDay })
+      body: JSON.stringify({ name, code, address, tel, closingDay, industryType })
     });
 
     if (res.ok) {
       setMessage("会社情報を更新しました。");
       router.refresh();
     } else {
-      setMessage("更新に失敗しました。");
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.error ?? "更新に失敗しました。");
     }
   }
 
@@ -42,7 +54,29 @@ export function CompanyMasterForm({
       <Field label="電話番号（MVP表示用）" value={tel} onChange={setTel} required={false} />
 
       <label className="block">
-        <span className="text-xs font-black text-slate-500">締日</span>
+        <span className="text-xs font-black text-slate-500">業種モード</span>
+        <select
+          value={industryType}
+          onChange={(e) => setIndustryType(e.target.value)}
+          disabled={!canEditIndustry}
+          className="mt-1 w-full rounded-xl border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-400"
+        >
+          {industryOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs font-bold text-slate-500">
+          care を選ぶと管理画面に介護施設メニューが表示されます。general に戻すと非表示になります。
+        </p>
+        {!canEditIndustry && (
+          <p className="mt-1 text-xs font-bold text-red-600">業種モードは system_admin または company_admin のみ変更できます。</p>
+        )}
+      </label>
+
+      <label className="block">
+        <span className="text-xs font-black text-slate-500">締め日</span>
         <select
           value={closingDay}
           onChange={(e) => setClosingDay(e.target.value)}
