@@ -193,6 +193,13 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     title: event.title
   }));
 
+  const approvedLeaves = leaveRequests.map((request) => ({
+    userId: request.userId,
+    date: dateKey(request.targetDate),
+    leaveTypeCode: request.leaveType.code,
+    leaveTypeName: request.leaveType.name
+  }));
+
   const usersForGrid = users.map((u, index) => {
     const userLogs = attendanceLogs.filter((log) => log.userId === u.id);
     const userLeaveMinutes = leaveRequests
@@ -261,8 +268,10 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
             initialShifts={initialShifts}
             workPatterns={workPatternRows}
             initialEvents={initialEvents}
+            approvedLeaves={approvedLeaves}
             departments={departments}
             enableAfterNightAutoFill={enableAfterNightAutoFill}
+            enableLeaveRequestAutoFill={enableAfterNightAutoFill}
           />
         </div>
       </section>

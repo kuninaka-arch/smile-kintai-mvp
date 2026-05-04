@@ -44,6 +44,13 @@ type InitialEvent = {
   title: string;
 };
 
+type ApprovedLeave = {
+  userId: string;
+  date: string;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+};
+
 type ContextMenuState = {
   userId: string;
   date: string;
@@ -186,6 +193,13 @@ function patternCategory(pattern: WorkPatternRow): PatternCategory {
   return "other";
 }
 
+function leaveCategory(leave: ApprovedLeave) {
+  const text = `${leave.leaveTypeCode} ${leave.leaveTypeName}`.toUpperCase();
+  if (/PAID|YU|有給|有休/.test(text)) return "PAID_LEAVE";
+  if (/REQUEST|HOPE|希望休/.test(text)) return "REQUESTED_OFF";
+  return "OFF";
+}
+
 export function ShiftMonthlyGrid({
   ym,
   year,
@@ -195,8 +209,10 @@ export function ShiftMonthlyGrid({
   initialShifts,
   workPatterns,
   initialEvents,
+  approvedLeaves,
   departments,
-  enableAfterNightAutoFill = false
+  enableAfterNightAutoFill = false,
+  enableLeaveRequestAutoFill = false
 }: {
   ym: string;
   year: number;
@@ -206,8 +222,10 @@ export function ShiftMonthlyGrid({
   initialShifts: InitialShift[];
   workPatterns: WorkPatternRow[];
   initialEvents: InitialEvent[];
+  approvedLeaves: ApprovedLeave[];
   departments: string[];
   enableAfterNightAutoFill?: boolean;
+  enableLeaveRequestAutoFill?: boolean;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,10 +241,16 @@ export function ShiftMonthlyGrid({
   const [patternCategoryFilter, setPatternCategoryFilter] = useState<PatternCategory>("all");
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [message, setMessage] = useState("");
 
   const patternsById = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.id, pattern])), [workPatterns]);
   const patternsByCode = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.code, pattern])), [workPatterns]);
+  const patternsByCategory = useMemo(() => {
+    const map: Record<string, WorkPatternRow | undefined> = {};
+    for (const pattern of workPatterns) {
+      if (!map[pattern.category]) map[pattern.category] = pattern;
+    }
+    return map;
+  }, [workPatterns]);
   const afterNightPattern = useMemo(() => workPatterns.find((pattern) => pattern.category === "AFTER_NIGHT") ?? null, [workPatterns]);
   const selectedPattern = selectedPatternId ? patternsById[selectedPatternId] ?? null : null;
   const favoritePatterns = useMemo(() => {
@@ -264,8 +288,11 @@ export function ShiftMonthlyGrid({
     });
   }, [year, month, dayCount, holidays]);
 
-  const initialMap = useMemo(() => {
+  const initialShiftState = useMemo(() => {
     const map: Record<string, string> = {};
+    let conflictCount = 0;
+    let missingPatternCount = 0;
+
     for (const shift of initialShifts) {
       const matchedPattern =
         (shift.workPatternId ? patternsById[shift.workPatternId] : null) ??
@@ -285,11 +312,40 @@ export function ShiftMonthlyGrid({
         }
       }
     }
-    return map;
-  }, [initialShifts, patternsByCode, patternsById, workPatterns]);
 
-  const [cells, setCells] = useState<Record<string, string>>(initialMap);
-  const cellsRef = useRef<Record<string, string>>(initialMap);
+    if (enableLeaveRequestAutoFill) {
+      for (const leave of approvedLeaves) {
+        const key = toKey(leave.userId, leave.date);
+        if (map[key]) {
+          conflictCount += 1;
+          continue;
+        }
+
+        const category = leaveCategory(leave);
+        const pattern = patternsByCategory[category];
+        if (!pattern) {
+          missingPatternCount += 1;
+          continue;
+        }
+
+        map[key] = pattern.id;
+      }
+    }
+
+    const notices: string[] = [];
+    if (conflictCount > 0) {
+      notices.push(`承認済み休暇がありますが、既存シフトがあるため${conflictCount}件は自動反映していません。`);
+    }
+    if (missingPatternCount > 0) {
+      notices.push(`休暇用の勤務パターンが未登録のため、${missingPatternCount}件は自動反映していません。`);
+    }
+
+    return { map, notice: notices.join(" ") };
+  }, [approvedLeaves, enableLeaveRequestAutoFill, initialShifts, patternsByCategory, patternsByCode, patternsById, workPatterns]);
+
+  const [message, setMessage] = useState(initialShiftState.notice);
+  const [cells, setCells] = useState<Record<string, string>>(initialShiftState.map);
+  const cellsRef = useRef<Record<string, string>>(initialShiftState.map);
   useEffect(() => {
     cellsRef.current = cells;
   }, [cells]);
