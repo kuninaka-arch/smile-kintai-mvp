@@ -20,6 +20,17 @@ enum IndustryType {
   construction
 }
 
+enum WorkPatternCategory {
+  EARLY
+  DAY
+  LATE
+  NIGHT
+  AFTER_NIGHT
+  OFF
+  PAID_LEAVE
+  REQUESTED_OFF
+}
+
 enum AttendanceType {
   CLOCK_IN
   CLOCK_OUT
@@ -306,11 +317,17 @@ model WorkPattern {
   company      Company  @relation(fields: [companyId], references: [id])
   code         String
   name         String
+  category     WorkPatternCategory @default(DAY)
   startTime    String
   endTime      String
   breakMinutes Int      @default(60)
   colorClass   String   @default("bg-emerald-400 text-slate-900")
+  displayColor String   @default("emerald")
   isHoliday    Boolean  @default(false)
+  isNightShift Boolean  @default(false)
+  autoCreateAfterNight Boolean @default(false)
+  countsAsWork Boolean  @default(true)
+  countsAsLeave Boolean @default(false)
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
   shifts       Shift[]
