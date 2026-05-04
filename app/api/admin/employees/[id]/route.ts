@@ -28,6 +28,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     : null;
 
   const displayOrder = Number.parseInt(String(body.displayOrder ?? "0"), 10);
+  const monthlyScheduledHours = Number(body.monthlyScheduledHours ?? 0);
 
   await prisma.user.update({
     where: { id: params.id },
@@ -37,6 +38,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       department: body.department || null,
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       positionMasterId: positionMaster?.id ?? null,
+      jobType: body.jobType || null,
+      isFullTime: Boolean(body.isFullTime),
+      monthlyScheduledMinutes: Number.isFinite(monthlyScheduledHours) && monthlyScheduledHours > 0 ? Math.round(monthlyScheduledHours * 60) : null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null
     }

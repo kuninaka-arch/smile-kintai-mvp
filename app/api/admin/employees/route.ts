@@ -31,6 +31,7 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(body.password, 10);
   const displayOrder = Number.parseInt(String(body.displayOrder ?? "0"), 10);
+  const monthlyScheduledHours = Number(body.monthlyScheduledHours ?? 0);
   const user = await prisma.user.create({
     data: {
       companyId: session.user.companyId,
@@ -39,6 +40,9 @@ export async function POST(req: Request) {
       department: body.department || null,
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       positionMasterId: positionMaster?.id ?? null,
+      jobType: body.jobType || null,
+      isFullTime: Boolean(body.isFullTime),
+      monthlyScheduledMinutes: Number.isFinite(monthlyScheduledHours) && monthlyScheduledHours > 0 ? Math.round(monthlyScheduledHours * 60) : null,
       role: roleMaster?.code === "ADMIN" || body.role === "ADMIN" ? Role.ADMIN : Role.EMPLOYEE,
       roleMasterId: roleMaster?.id ?? null,
       passwordHash

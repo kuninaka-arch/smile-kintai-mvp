@@ -77,7 +77,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
               <p className="text-sm text-slate-500">{filteredUsers.length}名を表示中</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[940px] text-sm">
+              <table className="w-full min-w-[1080px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
                     <th className="p-4">氏名</th>
@@ -85,6 +85,8 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
                     <th className="p-4">メール</th>
                     <th className="p-4">所属</th>
                     <th className="p-4">役職</th>
+                    <th className="p-4">職種</th>
+                    <th className="p-4">常勤</th>
                     <th className="p-4">権限</th>
                     <th className="p-4">編集</th>
                   </tr>
@@ -97,6 +99,8 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
                       <td className="p-4">{user.email}</td>
                       <td className="p-4">{user.department ?? "-"}</td>
                       <td className="p-4">{user.positionMaster?.name ?? "-"}</td>
+                      <td className="p-4">{user.jobType ?? "-"}</td>
+                      <td className="p-4">{user.isFullTime ? "常勤" : "非常勤"}</td>
                       <td className="p-4">
                         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
                           {user.roleMaster?.name ?? (user.role === "ADMIN" ? "管理者" : "社員")}
@@ -113,7 +117,10 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
                             displayOrder: user.displayOrder,
                             role: user.role,
                             roleMasterId: user.roleMasterId,
-                            positionMasterId: user.positionMasterId
+                            positionMasterId: user.positionMasterId,
+                            jobType: user.jobType,
+                            isFullTime: user.isFullTime,
+                            monthlyScheduledMinutes: user.monthlyScheduledMinutes
                           }}
                           roleMasters={roleMasterOptions}
                           positions={positionOptions}

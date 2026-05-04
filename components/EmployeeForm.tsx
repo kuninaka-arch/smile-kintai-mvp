@@ -17,6 +17,20 @@ type PositionOption = {
   name: string;
 };
 
+type EmployeeFormUser = {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: Role;
+  roleMasterId: string | null;
+  positionMasterId: string | null;
+  jobType: string | null;
+  isFullTime: boolean;
+  monthlyScheduledMinutes: number | null;
+  displayOrder: number;
+};
+
 export function EmployeeForm({
   mode,
   user,
@@ -24,7 +38,7 @@ export function EmployeeForm({
   positions
 }: {
   mode: "create" | "edit";
-  user?: { id: string; name: string; email: string; department: string; role: Role; roleMasterId: string | null; positionMasterId: string | null; displayOrder: number };
+  user?: EmployeeFormUser;
   roleMasters: RoleMasterOption[];
   positions: PositionOption[];
 }) {
@@ -35,6 +49,11 @@ export function EmployeeForm({
   const [department, setDepartment] = useState(user?.department ?? "");
   const [displayOrder, setDisplayOrder] = useState(String(user?.displayOrder ?? ""));
   const [positionMasterId, setPositionMasterId] = useState(user?.positionMasterId ?? "");
+  const [jobType, setJobType] = useState(user?.jobType ?? "");
+  const [isFullTime, setIsFullTime] = useState(user?.isFullTime ?? false);
+  const [monthlyScheduledHours, setMonthlyScheduledHours] = useState(
+    user?.monthlyScheduledMinutes ? String(Math.round(user.monthlyScheduledMinutes / 60)) : ""
+  );
   const [role, setRole] = useState<Role>(user?.role ?? "EMPLOYEE");
   const [roleMasterId, setRoleMasterId] = useState(user?.roleMasterId ?? roleMasters.find((item) => item.code === (user?.role ?? "EMPLOYEE"))?.id ?? "");
   const [password, setPassword] = useState("password123");
@@ -53,7 +72,19 @@ export function EmployeeForm({
     const res = await fetch(mode === "create" ? "/api/admin/employees" : `/api/admin/employees/${user?.id}`, {
       method: mode === "create" ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, department, displayOrder, positionMasterId, role, roleMasterId, password })
+      body: JSON.stringify({
+        name,
+        email,
+        department,
+        displayOrder,
+        positionMasterId,
+        jobType,
+        isFullTime,
+        monthlyScheduledHours,
+        role,
+        roleMasterId,
+        password
+      })
     });
 
     if (res.ok) {
@@ -64,6 +95,9 @@ export function EmployeeForm({
         setDepartment("");
         setDisplayOrder("");
         setPositionMasterId("");
+        setJobType("");
+        setIsFullTime(false);
+        setMonthlyScheduledHours("");
         setPassword("password123");
       }
       router.refresh();
@@ -96,6 +130,28 @@ export function EmployeeForm({
       <Field label="メール" value={email} onChange={setEmail} type="email" />
       <Field label="所属" value={department} onChange={setDepartment} />
       <Field label="表示順" value={displayOrder} onChange={setDisplayOrder} type="number" required={false} />
+      <label className="block">
+        <span className="text-xs font-black text-slate-500">職種</span>
+        <input
+          list="job-type-options"
+          value={jobType}
+          onChange={(e) => setJobType(e.target.value)}
+          className="mt-1 w-full rounded-xl border px-3 py-2"
+          placeholder="介護職員"
+        />
+        <datalist id="job-type-options">
+          <option value="介護職員" />
+          <option value="看護師" />
+          <option value="機能訓練指導員" />
+          <option value="生活相談員" />
+          <option value="事務員" />
+        </datalist>
+      </label>
+      <label className="flex items-center gap-2 rounded-xl border px-3 py-2">
+        <input type="checkbox" checked={isFullTime} onChange={(e) => setIsFullTime(e.target.checked)} />
+        <span className="text-sm font-black text-slate-700">常勤</span>
+      </label>
+      <Field label="月所定労働時間（時間）" value={monthlyScheduledHours} onChange={setMonthlyScheduledHours} type="number" required={false} />
       <label className="block">
         <span className="text-xs font-black text-slate-500">役職</span>
         <select value={positionMasterId} onChange={(e) => setPositionMasterId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2">

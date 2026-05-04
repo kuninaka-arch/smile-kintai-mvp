@@ -56,6 +56,7 @@ model Company {
   leaveRequests LeaveRequest[]
   periodLocks AttendancePeriodLock[]
   careStaffingRules CareStaffingRule[]
+  careFullTimeEquivalentRules CareFullTimeEquivalentRule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -98,6 +99,9 @@ model User {
   employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
   roleMasterId  String?
   roleMaster    RoleMaster? @relation(fields: [roleMasterId], references: [id])
+  jobType       String?
+  isFullTime    Boolean         @default(false)
+  monthlyScheduledMinutes Int?
   displayOrder  Int             @default(0)
   attendanceLogs AttendanceLog[]
   shifts        Shift[]
@@ -172,6 +176,17 @@ model CareStaffingRule {
 
   @@index([companyId, category])
   @@index([companyId, floorId, departmentId])
+}
+
+model CareFullTimeEquivalentRule {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  standardMonthlyMinutes Int @default(9600)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 model PaidLeave {
