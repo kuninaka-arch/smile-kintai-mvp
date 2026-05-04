@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { LeaveRequestStatus, LeaveRequestUnit, PrismaClient, Role, WorkPatternCategory } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -138,6 +138,544 @@ async function ensureShiftForDate(companyId: string, userId: string, workDate: D
 
   await prisma.shift.create({
     data: { companyId, userId, workDate, ...data }
+  });
+}
+
+function tokyoDate(year: number, month: number, day: number) {
+  return new Date(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+09:00`);
+}
+
+async function upsertCareStaffingRule(companyId: string, category: WorkPatternCategory, requiredCount: number) {
+  const existing = await prisma.careStaffingRule.findFirst({
+    where: { companyId, category, floorId: null, departmentId: null }
+  });
+
+  if (existing) {
+    await prisma.careStaffingRule.update({
+      where: { id: existing.id },
+      data: { requiredCount, effectiveFrom: null, effectiveTo: null }
+    });
+    return;
+  }
+
+  await prisma.careStaffingRule.create({
+    data: { companyId, category, requiredCount }
+  });
+}
+
+async function upsertFullTimeEquivalentRule(companyId: string, standardMonthlyMinutes: number) {
+  const existing = await prisma.careFullTimeEquivalentRule.findFirst({ where: { companyId } });
+  if (existing) {
+    await prisma.careFullTimeEquivalentRule.update({
+      where: { id: existing.id },
+      data: { standardMonthlyMinutes }
+    });
+    return;
+  }
+
+  await prisma.careFullTimeEquivalentRule.create({
+    data: { companyId, standardMonthlyMinutes }
+  });
+}
+
+async function upsertLeaveRequest(data: {
+  companyId: string;
+  userId: string;
+  leaveTypeId: string;
+  targetDate: Date;
+  reason: string;
+  status: LeaveRequestStatus;
+}) {
+  const existing = await prisma.leaveRequest.findFirst({
+    where: {
+      companyId: data.companyId,
+      userId: data.userId,
+      leaveTypeId: data.leaveTypeId,
+      targetDate: data.targetDate
+    }
+  });
+
+  const updateData = {
+    reason: data.reason,
+    unit: LeaveRequestUnit.FULL_DAY,
+    hours: null,
+    status: data.status,
+    approvedAt: data.status === LeaveRequestStatus.APPROVED ? new Date() : null
+  };
+
+  if (existing) {
+    await prisma.leaveRequest.update({
+      where: { id: existing.id },
+      data: updateData
+    });
+    return;
+  }
+
+  await prisma.leaveRequest.create({
+    data: {
+      companyId: data.companyId,
+      userId: data.userId,
+      leaveTypeId: data.leaveTypeId,
+      targetDate: data.targetDate,
+      ...updateData
+    }
+  });
+}
+
+async function seedCareDemo(passwordHash: string) {
+  const demoCompany = await prisma.company.upsert({
+    where: { code: "CARE_DEMO" },
+    update: { name: "デモ介護施設", industryType: "care", closingDay: 31 },
+    create: { name: "デモ介護施設", code: "CARE_DEMO", industryType: "care", closingDay: 31 }
+  });
+
+  const demoDepartments = [
+    { code: "CARE_FLOOR_1", name: "介護フロア1" },
+    { code: "CARE_FLOOR_2", name: "介護フロア2" },
+    { code: "NURSING", name: "看護" },
+    { code: "REHAB_DEMO", name: "リハビリ" },
+    { code: "OFFICE_DEMO", name: "事務" }
+  ];
+
+  const departmentMasters = await Promise.all(
+    demoDepartments.map((department, index) =>
+      prisma.department.upsert({
+        where: { companyId_code: { companyId: demoCompany.id, code: department.code } },
+        update: { name: department.name, sortOrder: index + 1, isActive: true },
+        create: {
+          companyId: demoCompany.id,
+          code: department.code,
+          name: department.name,
+          sortOrder: index + 1,
+          isActive: true
+        }
+      })
+    )
+  );
+
+  const demoPositions = [
+    { code: "FACILITY_MANAGER", name: "施設長" },
+    { code: "CARE_CHIEF", name: "介護主任" },
+    { code: "NURSE_CHIEF", name: "看護主任" },
+    { code: "CARE_STAFF", name: "介護職員" },
+    { code: "NURSE_STAFF", name: "看護師" },
+    { code: "OFFICE_STAFF", name: "事務員" }
+  ];
+
+  const positionMasters = await Promise.all(
+    demoPositions.map((position, index) =>
+      prisma.positionMaster.upsert({
+        where: { companyId_code: { companyId: demoCompany.id, code: position.code } },
+        update: { name: position.name, sortOrder: index + 1, isActive: true },
+        create: {
+          companyId: demoCompany.id,
+          code: position.code,
+          name: position.name,
+          sortOrder: index + 1,
+          isActive: true
+        }
+      })
+    )
+  );
+
+  const fullTime = await prisma.employmentType.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "FULL_TIME" } },
+    update: { name: "常勤", sortOrder: 1, isActive: true },
+    create: { companyId: demoCompany.id, code: "FULL_TIME", name: "常勤", sortOrder: 1, isActive: true }
+  });
+
+  const partTime = await prisma.employmentType.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "PART_TIME" } },
+    update: { name: "非常勤", sortOrder: 2, isActive: true },
+    create: { companyId: demoCompany.id, code: "PART_TIME", name: "非常勤", sortOrder: 2, isActive: true }
+  });
+
+  const adminRole = await prisma.roleMaster.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "ADMIN" } },
+    update: { name: "管理者", sortOrder: 1, isActive: true },
+    create: { companyId: demoCompany.id, code: "ADMIN", name: "管理者", description: "介護デモ管理者", sortOrder: 1, isActive: true }
+  });
+
+  const staffRole = await prisma.roleMaster.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "EMPLOYEE" } },
+    update: { name: "スタッフ", sortOrder: 2, isActive: true },
+    create: { companyId: demoCompany.id, code: "EMPLOYEE", name: "スタッフ", description: "介護デモスタッフ", sortOrder: 2, isActive: true }
+  });
+
+  const paidLeaveType = await prisma.leaveTypeMaster.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "PAID" } },
+    update: { name: "有給休暇", allowHourly: true, sortOrder: 1, isActive: true },
+    create: { companyId: demoCompany.id, code: "PAID", name: "有給休暇", allowHourly: true, sortOrder: 1, isActive: true }
+  });
+
+  const requestedOffType = await prisma.leaveTypeMaster.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "REQUESTED_OFF" } },
+    update: { name: "希望休", allowHourly: false, sortOrder: 2, isActive: true },
+    create: { companyId: demoCompany.id, code: "REQUESTED_OFF", name: "希望休", allowHourly: false, sortOrder: 2, isActive: true }
+  });
+
+  await prisma.leaveTypeMaster.upsert({
+    where: { companyId_code: { companyId: demoCompany.id, code: "ABSENCE" } },
+    update: { name: "欠勤", allowHourly: false, sortOrder: 3, isActive: true },
+    create: { companyId: demoCompany.id, code: "ABSENCE", name: "欠勤", allowHourly: false, sortOrder: 3, isActive: true }
+  });
+
+  const demoPatterns = [
+    {
+      code: "DEMO_E",
+      name: "早番",
+      category: WorkPatternCategory.EARLY,
+      startTime: "07:00",
+      endTime: "16:00",
+      breakMinutes: 60,
+      colorClass: "bg-sky-300 text-slate-900",
+      displayColor: "sky",
+      isHoliday: false,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: true,
+      countsAsLeave: false,
+      sortOrder: 1
+    },
+    {
+      code: "DEMO_D",
+      name: "日勤",
+      category: WorkPatternCategory.DAY,
+      startTime: "09:00",
+      endTime: "18:00",
+      breakMinutes: 60,
+      colorClass: "bg-emerald-300 text-slate-900",
+      displayColor: "emerald",
+      isHoliday: false,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: true,
+      countsAsLeave: false,
+      sortOrder: 2
+    },
+    {
+      code: "DEMO_L",
+      name: "遅番",
+      category: WorkPatternCategory.LATE,
+      startTime: "11:00",
+      endTime: "20:00",
+      breakMinutes: 60,
+      colorClass: "bg-orange-300 text-slate-900",
+      displayColor: "orange",
+      isHoliday: false,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: true,
+      countsAsLeave: false,
+      sortOrder: 3
+    },
+    {
+      code: "DEMO_N",
+      name: "夜勤",
+      category: WorkPatternCategory.NIGHT,
+      startTime: "16:00",
+      endTime: "09:00",
+      breakMinutes: 120,
+      colorClass: "bg-indigo-300 text-slate-900",
+      displayColor: "indigo",
+      isHoliday: false,
+      isNightShift: true,
+      autoCreateAfterNight: true,
+      countsAsWork: true,
+      countsAsLeave: false,
+      sortOrder: 4
+    },
+    {
+      code: "DEMO_AK",
+      name: "明け",
+      category: WorkPatternCategory.AFTER_NIGHT,
+      startTime: "00:00",
+      endTime: "00:00",
+      breakMinutes: 0,
+      colorClass: "bg-violet-200 text-slate-900",
+      displayColor: "violet",
+      isHoliday: true,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: false,
+      countsAsLeave: false,
+      sortOrder: 5
+    },
+    {
+      code: "DEMO_OFF",
+      name: "休み",
+      category: WorkPatternCategory.OFF,
+      startTime: "00:00",
+      endTime: "00:00",
+      breakMinutes: 0,
+      colorClass: "bg-slate-200 text-slate-700",
+      displayColor: "slate",
+      isHoliday: true,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: false,
+      countsAsLeave: false,
+      sortOrder: 6
+    },
+    {
+      code: "PAID",
+      name: "有給",
+      category: WorkPatternCategory.PAID_LEAVE,
+      startTime: "00:00",
+      endTime: "00:00",
+      breakMinutes: 0,
+      colorClass: "bg-amber-200 text-slate-900",
+      displayColor: "amber",
+      isHoliday: true,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: false,
+      countsAsLeave: true,
+      sortOrder: 7
+    },
+    {
+      code: "REQUESTED_OFF",
+      name: "希望休",
+      category: WorkPatternCategory.REQUESTED_OFF,
+      startTime: "00:00",
+      endTime: "00:00",
+      breakMinutes: 0,
+      colorClass: "bg-pink-200 text-slate-900",
+      displayColor: "pink",
+      isHoliday: true,
+      isNightShift: false,
+      autoCreateAfterNight: false,
+      countsAsWork: false,
+      countsAsLeave: false,
+      sortOrder: 8
+    }
+  ];
+
+  const patternMasters = await Promise.all(
+    demoPatterns.map((pattern) =>
+      prisma.workPattern.upsert({
+        where: { companyId_code: { companyId: demoCompany.id, code: pattern.code } },
+        update: { ...pattern, isActive: true },
+        create: { companyId: demoCompany.id, ...pattern, isActive: true }
+      })
+    )
+  );
+  const patternByCode = new Map(patternMasters.map((pattern) => [pattern.code, pattern]));
+
+  const admin = await prisma.user.upsert({
+    where: { email: "care-admin@smile-kintai.local" },
+    update: {
+      companyId: demoCompany.id,
+      name: "介護 管理者",
+      role: Role.ADMIN,
+      roleMasterId: adminRole.id,
+      positionMasterId: positionMasters[0].id,
+      department: departmentMasters[4].name,
+      departmentId: departmentMasters[4].id,
+      employmentTypeId: fullTime.id,
+      jobType: "施設管理者",
+      isFullTime: true,
+      monthlyScheduledMinutes: 160 * 60,
+      displayOrder: 1
+    },
+    create: {
+      companyId: demoCompany.id,
+      name: "介護 管理者",
+      email: "care-admin@smile-kintai.local",
+      passwordHash,
+      role: Role.ADMIN,
+      roleMasterId: adminRole.id,
+      positionMasterId: positionMasters[0].id,
+      department: departmentMasters[4].name,
+      departmentId: departmentMasters[4].id,
+      employmentTypeId: fullTime.id,
+      jobType: "施設管理者",
+      isFullTime: true,
+      monthlyScheduledMinutes: 160 * 60,
+      displayOrder: 1
+    }
+  });
+
+  const staffDefinitions = [
+    { name: "佐藤 花子", jobType: "介護職員", departmentIndex: 0, positionIndex: 3, fullTime: true, qualifications: ["介護福祉士"] },
+    { name: "鈴木 太郎", jobType: "介護職員", departmentIndex: 0, positionIndex: 1, fullTime: true, qualifications: ["介護福祉士", "介護支援専門員"] },
+    { name: "高橋 美咲", jobType: "介護職員", departmentIndex: 1, positionIndex: 3, fullTime: true, qualifications: ["初任者研修"] },
+    { name: "田中 健一", jobType: "介護職員", departmentIndex: 1, positionIndex: 3, fullTime: true, qualifications: ["実務者研修"] },
+    { name: "伊藤 明日香", jobType: "看護師", departmentIndex: 2, positionIndex: 4, fullTime: true, qualifications: ["看護師"] },
+    { name: "渡辺 直人", jobType: "准看護師", departmentIndex: 2, positionIndex: 4, fullTime: true, qualifications: ["准看護師"] },
+    { name: "山本 由美", jobType: "機能訓練指導員", departmentIndex: 3, positionIndex: 5, fullTime: false, qualifications: ["PT"] },
+    { name: "中村 誠", jobType: "生活相談員", departmentIndex: 0, positionIndex: 5, fullTime: true, qualifications: ["生活相談員"] },
+    { name: "小林 葵", jobType: "介護職員", departmentIndex: 1, positionIndex: 3, fullTime: false, qualifications: ["初任者研修"] },
+    { name: "加藤 翼", jobType: "事務員", departmentIndex: 4, positionIndex: 5, fullTime: true, qualifications: [] }
+  ];
+
+  const staffUsers = [];
+  for (let index = 0; index < staffDefinitions.length; index += 1) {
+    const staff = staffDefinitions[index];
+    const department = departmentMasters[staff.departmentIndex];
+    const position = positionMasters[staff.positionIndex];
+    const employmentType = staff.fullTime ? fullTime : partTime;
+    const user = await prisma.user.upsert({
+      where: { email: `care-staff${String(index + 1).padStart(2, "0")}@smile-kintai.local` },
+      update: {
+        companyId: demoCompany.id,
+        name: staff.name,
+        role: Role.EMPLOYEE,
+        roleMasterId: staffRole.id,
+        positionMasterId: position.id,
+        department: department.name,
+        departmentId: department.id,
+        employmentTypeId: employmentType.id,
+        jobType: staff.jobType,
+        isFullTime: staff.fullTime,
+        monthlyScheduledMinutes: staff.fullTime ? 160 * 60 : 96 * 60,
+        displayOrder: index + 2
+      },
+      create: {
+        companyId: demoCompany.id,
+        name: staff.name,
+        email: `care-staff${String(index + 1).padStart(2, "0")}@smile-kintai.local`,
+        passwordHash,
+        role: Role.EMPLOYEE,
+        roleMasterId: staffRole.id,
+        positionMasterId: position.id,
+        department: department.name,
+        departmentId: department.id,
+        employmentTypeId: employmentType.id,
+        jobType: staff.jobType,
+        isFullTime: staff.fullTime,
+        monthlyScheduledMinutes: staff.fullTime ? 160 * 60 : 96 * 60,
+        displayOrder: index + 2
+      }
+    });
+    staffUsers.push({ ...user, qualificationNames: staff.qualifications });
+    await ensurePaidLeave(demoCompany.id, user.id, staff.fullTime ? 12 : 6, index % 3);
+  }
+
+  const qualificationNames = ["介護福祉士", "看護師", "准看護師", "PT", "介護支援専門員", "生活相談員", "初任者研修", "実務者研修"];
+  const qualificationMasters = new Map<string, { id: string }>();
+  for (const name of qualificationNames) {
+    const qualification = await prisma.qualificationMaster.upsert({
+      where: { companyId_name: { companyId: demoCompany.id, name } },
+      update: { name },
+      create: { companyId: demoCompany.id, name }
+    });
+    qualificationMasters.set(name, qualification);
+  }
+
+  for (const staff of staffUsers) {
+    for (const qualificationName of staff.qualificationNames) {
+      const qualification = qualificationMasters.get(qualificationName);
+      if (!qualification) continue;
+      await prisma.userQualification.upsert({
+        where: { userId_qualificationId: { userId: staff.id, qualificationId: qualification.id } },
+        update: {},
+        create: { userId: staff.id, qualificationId: qualification.id }
+      });
+    }
+  }
+
+  for (const [name, requiredCount] of [
+    ["介護福祉士", 1],
+    ["看護師", 1]
+  ] as const) {
+    const qualification = qualificationMasters.get(name);
+    if (!qualification) continue;
+    await prisma.careQualificationRule.upsert({
+      where: { companyId_qualificationId: { companyId: demoCompany.id, qualificationId: qualification.id } },
+      update: { requiredCount },
+      create: { companyId: demoCompany.id, qualificationId: qualification.id, requiredCount }
+    });
+  }
+
+  await upsertCareStaffingRule(demoCompany.id, WorkPatternCategory.EARLY, 1);
+  await upsertCareStaffingRule(demoCompany.id, WorkPatternCategory.DAY, 2);
+  await upsertCareStaffingRule(demoCompany.id, WorkPatternCategory.LATE, 1);
+  await upsertCareStaffingRule(demoCompany.id, WorkPatternCategory.NIGHT, 1);
+  await upsertFullTimeEquivalentRule(demoCompany.id, 160 * 60);
+
+  const now = new Date();
+  const targetYear = now.getFullYear();
+  const targetMonth = now.getMonth() + 1;
+  const monthStart = tokyoDate(targetYear, targetMonth, 1);
+  const monthEnd = targetMonth === 12 ? tokyoDate(targetYear + 1, 1, 1) : tokyoDate(targetYear, targetMonth + 1, 1);
+  const days = new Date(targetYear, targetMonth, 0).getDate();
+  const demoUserIds = staffUsers.map((user) => user.id);
+
+  await prisma.shift.deleteMany({
+    where: {
+      companyId: demoCompany.id,
+      userId: { in: demoUserIds },
+      workDate: { gte: monthStart, lt: monthEnd }
+    }
+  });
+
+  const shiftRows = [];
+  const patternPlan = [
+    "DEMO_E",
+    "DEMO_D",
+    "DEMO_D",
+    "DEMO_L",
+    "DEMO_N",
+    "DEMO_D",
+    "DEMO_D",
+    "DEMO_D",
+    "DEMO_OFF",
+    "DEMO_D"
+  ];
+
+  for (let day = 1; day <= days; day += 1) {
+    for (let staffIndex = 0; staffIndex < staffUsers.length; staffIndex += 1) {
+      let code = patternPlan[staffIndex];
+
+      if (staffIndex === 4 && day === 8) code = "DEMO_OFF";
+      if (staffIndex === 5 && day > 1 && day % 3 === 2) code = "DEMO_AK";
+      if (staffIndex === 8 && day % 5 === 0) code = "REQUESTED_OFF";
+      if (staffIndex === 9 && (day === 6 || day === 20)) code = "PAID";
+
+      const pattern = patternByCode.get(code) ?? patternByCode.get("DEMO_D");
+      if (!pattern) continue;
+
+      shiftRows.push({
+        companyId: demoCompany.id,
+        userId: staffUsers[staffIndex].id,
+        workDate: tokyoDate(targetYear, targetMonth, day),
+        startTime: pattern.startTime,
+        endTime: pattern.endTime,
+        breakMinutes: pattern.breakMinutes,
+        patternCode: pattern.code,
+        workPatternId: pattern.id
+      });
+    }
+  }
+
+  await prisma.shift.createMany({ data: shiftRows });
+
+  await upsertLeaveRequest({
+    companyId: demoCompany.id,
+    userId: staffUsers[0].id,
+    leaveTypeId: paidLeaveType.id,
+    targetDate: tokyoDate(targetYear, targetMonth, 10),
+    reason: "デモ用の承認済み有給です。",
+    status: LeaveRequestStatus.APPROVED
+  });
+
+  await upsertLeaveRequest({
+    companyId: demoCompany.id,
+    userId: staffUsers[1].id,
+    leaveTypeId: requestedOffType.id,
+    targetDate: tokyoDate(targetYear, targetMonth, 12),
+    reason: "デモ用の承認済み希望休です。",
+    status: LeaveRequestStatus.APPROVED
+  });
+
+  await upsertLeaveRequest({
+    companyId: demoCompany.id,
+    userId: staffUsers[2].id,
+    leaveTypeId: paidLeaveType.id,
+    targetDate: tokyoDate(targetYear, targetMonth, 18),
+    reason: "承認操作確認用の申請です。",
+    status: LeaveRequestStatus.PENDING
   });
 }
 
@@ -500,6 +1038,8 @@ async function main() {
       data: shiftRows.slice(i, i + 500)
     });
   }
+
+  await seedCareDemo(passwordHash);
 
   console.log("Seed completed.");
 }
