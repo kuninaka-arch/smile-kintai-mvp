@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { CareFteSettingsForm } from "@/components/CareFteSettingsForm";
@@ -29,10 +30,15 @@ export default async function CareFteSettingsPage() {
 
       <section className="lg:ml-64">
         <header className="sticky top-0 z-10 border-b bg-white/90 px-5 py-4 backdrop-blur">
-          <div className="mx-auto max-w-7xl">
-            <p className="text-sm font-black text-emerald-700">介護施設モード</p>
-            <h1 className="text-2xl font-black text-slate-900">常勤換算 基準設定</h1>
-            <p className="mt-1 text-sm text-slate-500">常勤換算で割り戻す基準月間時間を設定します。</p>
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-emerald-700">介護施設モード</p>
+              <h1 className="text-2xl font-black text-slate-900">常勤換算 基準設定</h1>
+              <p className="mt-1 text-sm text-slate-500">常勤換算で割り戻す基準月間時間を設定します。</p>
+            </div>
+            <Link href="/admin/care/full-time-equivalent" className="rounded-xl border bg-white px-4 py-2 font-black text-slate-700">
+              常勤換算表へ戻る
+            </Link>
           </div>
         </header>
 

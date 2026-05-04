@@ -66,6 +66,9 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
               <Link href={`/api/admin/care/addition-reports/export?ym=${ym}&fileType=pdf`} className="rounded-xl bg-slate-900 px-4 py-2 font-black text-white">
                 PDF出力
               </Link>
+              <Link href="/admin/care/report-exports" className="rounded-xl border bg-white px-4 py-2 font-black text-slate-700">
+                出力履歴
+              </Link>
             </div>
           </div>
         </header>

@@ -64,7 +64,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/care/qualifications", label: "資格者配置表", key: "care-qualifications", icon: "badge" },
   { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
   { href: "/admin/care/addition-reports", label: "加算資料", key: "care-addition-reports", icon: "database" },
-  { href: "/admin/care/report-exports", label: "帳票出力", key: "care-report-exports", icon: "briefcase" },
+  { href: "/admin/care/report-exports", label: "帳票出力履歴", key: "care-report-exports", icon: "briefcase" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },
   { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }

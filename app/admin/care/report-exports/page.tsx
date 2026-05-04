@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { requireAdmin } from "@/components/RequireAuth";
@@ -57,12 +58,17 @@ export default async function CareReportExportsPage() {
 
       <section className="lg:ml-64">
         <header className="sticky top-0 z-10 border-b bg-white/90 px-5 py-4 backdrop-blur">
-          <div className="mx-auto max-w-7xl">
-            <p className="text-sm font-black text-emerald-700">介護施設モード</p>
-            <h1 className="text-2xl font-black text-slate-900">帳票出力履歴</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              加算資料などの帳票を出力した履歴を新しい順で確認します。
-            </p>
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-emerald-700">介護施設モード</p>
+              <h1 className="text-2xl font-black text-slate-900">帳票出力履歴</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                加算資料などの帳票を出力した履歴を新しい順で確認します。
+              </p>
+            </div>
+            <Link href="/admin/care/addition-reports" className="rounded-xl border bg-white px-4 py-2 font-black text-slate-700">
+              加算資料へ戻る
+            </Link>
           </div>
         </header>
 
