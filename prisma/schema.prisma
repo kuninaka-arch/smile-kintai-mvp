@@ -57,6 +57,8 @@ model Company {
   periodLocks AttendancePeriodLock[]
   careStaffingRules CareStaffingRule[]
   careFullTimeEquivalentRules CareFullTimeEquivalentRule[]
+  qualificationMasters QualificationMaster[]
+  careQualificationRules CareQualificationRule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -108,6 +110,7 @@ model User {
   paidLeaves    PaidLeave[]
   correctionRequests AttendanceCorrectionRequest[]
   leaveRequests LeaveRequest[]
+  qualifications UserQualification[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -187,6 +190,52 @@ model CareFullTimeEquivalentRule {
   updatedAt DateTime @updatedAt
 
   @@index([companyId])
+}
+
+model QualificationMaster {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  userQualifications UserQualification[]
+  careQualificationRules CareQualificationRule[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model UserQualification {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  qualificationId String
+  qualification   QualificationMaster @relation(fields: [qualificationId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, qualificationId])
+  @@index([userId])
+  @@index([qualificationId])
+}
+
+model CareQualificationRule {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  qualificationId String
+  qualification   QualificationMaster @relation(fields: [qualificationId], references: [id])
+  requiredCount   Int      @default(0)
+  floorId         String?
+  departmentId    String?
+  effectiveFrom   DateTime?
+  effectiveTo     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, qualificationId])
+  @@index([companyId, qualificationId])
+  @@index([companyId, floorId, departmentId])
 }
 
 model PaidLeave {
