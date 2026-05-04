@@ -55,6 +55,7 @@ model Company {
   shiftEvents ShiftEvent[]
   leaveRequests LeaveRequest[]
   periodLocks AttendancePeriodLock[]
+  careStaffingRules CareStaffingRule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -154,6 +155,23 @@ model ShiftEvent {
 
   @@unique([companyId, workDate])
   @@index([companyId, workDate])
+}
+
+model CareStaffingRule {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  category  WorkPatternCategory
+  requiredCount Int @default(0)
+  floorId   String?
+  departmentId String?
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, category])
+  @@index([companyId, floorId, departmentId])
 }
 
 model PaidLeave {

@@ -59,6 +59,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/care/shifts", label: "シフト管理", key: "care-shifts", icon: "shifts" },
   { href: "/admin/care/leaves", label: "休暇・希望休管理", key: "care-leaves", icon: "leave" },
   { href: "/admin/care/staffing", label: "人員配置表", key: "care-staffing", icon: "users" },
+  { href: "/admin/care/staffing-rules", label: "人員配置基準設定", key: "care-staffing-rules", icon: "database" },
   { href: "/admin/care/full-time-equivalent", label: "常勤換算表", key: "care-fte", icon: "chart" },
   { href: "/admin/care/qualifications", label: "資格者配置表", key: "care-qualifications", icon: "badge" },
   { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
