@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { LeaveRequestStatus, LeaveRequestUnit } from "@prisma/client";
+import { LeaveRequestStatus, LeaveRequestUnit, WorkPatternCategory } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
+import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 import { isDateLocked } from "@/lib/period-lock";
 
@@ -29,6 +30,13 @@ function tokyoDateRange(date: Date) {
   return { key, start, end };
 }
 
+function leavePatternCategory(code: string, name: string) {
+  const text = `${code} ${name}`.toUpperCase();
+  if (/PAID|YU|有休|有給/.test(text)) return WorkPatternCategory.PAID_LEAVE;
+  if (/REQUEST|HOPE|希望休/.test(text)) return WorkPatternCategory.REQUESTED_OFF;
+  return WorkPatternCategory.OFF;
+}
+
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,6 +52,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (await isDateLocked(session.user.companyId, request.targetDate)) {
     return NextResponse.json({ error: "締め済み期間のため、休暇申請は変更できません。" }, { status: 423 });
   }
+
+  const company = await prisma.company.findUnique({
+    where: { id: session.user.companyId },
+    select: { industryType: true }
+  });
+  const careMode = isCareCompany(company?.industryType);
 
   await prisma.$transaction(async (tx) => {
     await tx.leaveRequest.update({
@@ -72,25 +86,32 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     if (request.unit === LeaveRequestUnit.FULL_DAY) {
+      const category = leavePatternCategory(request.leaveType.code, request.leaveType.name);
       const pattern = await tx.workPattern.upsert({
         where: { companyId_code: { companyId: request.companyId, code: request.leaveType.code } },
         update: {
           name: request.leaveType.name,
+          category,
           startTime: "00:00",
           endTime: "00:00",
           breakMinutes: 0,
           isHoliday: true,
+          countsAsWork: false,
+          countsAsLeave: category === WorkPatternCategory.PAID_LEAVE,
           isActive: true
         },
         create: {
           companyId: request.companyId,
           code: request.leaveType.code,
           name: request.leaveType.name,
+          category,
           startTime: "00:00",
           endTime: "00:00",
           breakMinutes: 0,
           colorClass: colorForLeave(request.leaveType.code),
           isHoliday: true,
+          countsAsWork: false,
+          countsAsLeave: category === WorkPatternCategory.PAID_LEAVE,
           sortOrder: 80,
           isActive: true
         }
@@ -114,6 +135,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         workPatternId: pattern.id
       };
       if (existingShift) {
+        if (careMode) return;
         await tx.shift.update({ where: { id: existingShift.id }, data: shiftData });
         await tx.shift.deleteMany({
           where: {

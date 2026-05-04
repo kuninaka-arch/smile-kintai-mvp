@@ -62,6 +62,28 @@ function actualWorkMinutes(logs: Array<{ type: string; stampedAt: Date }>) {
   return Math.max(0, Math.round(total));
 }
 
+function inferCarePatternCategory(pattern: {
+  code: string;
+  name: string;
+  category: string;
+  isHoliday: boolean;
+}) {
+  if (pattern.category && pattern.category !== "DAY") return pattern.category;
+
+  const code = pattern.code.toUpperCase();
+  const text = `${pattern.code} ${pattern.name}`.toUpperCase();
+
+  if (/AFTER|AKE|AK|明け/.test(text)) return "AFTER_NIGHT";
+  if (code === "PAID" || code === "YU" || /PAID|有休|有給/.test(text)) return "PAID_LEAVE";
+  if (/REQUEST|HOPE|希望休/.test(text)) return "REQUESTED_OFF";
+  if (code === "OFF" || pattern.isHoliday || /OFF|公休|休み|休日/.test(text)) return "OFF";
+  if (/^N\d*|^MN\d*/.test(code) || /NIGHT|夜勤|深夜/.test(text)) return "NIGHT";
+  if (/^E\d*/.test(code) || /EARLY|早/.test(text)) return "EARLY";
+  if (/^L\d*/.test(code) || /LATE|遅/.test(text)) return "LATE";
+
+  return pattern.category || "DAY";
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -175,18 +197,23 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     workPatternId: s.workPatternId
   }));
 
-  const workPatternRows = workPatterns.map((pattern) => ({
-    id: pattern.id,
-    code: pattern.code,
-    name: pattern.name,
-    category: pattern.category,
-    startTime: pattern.startTime,
-    endTime: pattern.endTime,
-    breakMinutes: pattern.breakMinutes,
-    colorClass: pattern.colorClass,
-    isHoliday: pattern.isHoliday,
-    autoCreateAfterNight: pattern.autoCreateAfterNight
-  }));
+  const workPatternRows = workPatterns.map((pattern) => {
+    const effectiveCategory = enableAfterNightAutoFill ? inferCarePatternCategory(pattern) : pattern.category;
+    const inferredNight = effectiveCategory === "NIGHT";
+
+    return {
+      id: pattern.id,
+      code: pattern.code,
+      name: pattern.name,
+      category: effectiveCategory,
+      startTime: pattern.startTime,
+      endTime: pattern.endTime,
+      breakMinutes: pattern.breakMinutes,
+      colorClass: pattern.colorClass,
+      isHoliday: pattern.isHoliday || ["AFTER_NIGHT", "OFF", "PAID_LEAVE", "REQUESTED_OFF"].includes(effectiveCategory),
+      autoCreateAfterNight: pattern.autoCreateAfterNight || inferredNight
+    };
+  });
 
   const initialEvents = events.map((event) => ({
     date: dateKey(event.workDate),

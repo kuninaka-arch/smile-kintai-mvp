@@ -179,7 +179,8 @@ function formatHours(minutes: number) {
 
 function isPaidLeavePattern(pattern: WorkPatternRow | null) {
   if (!pattern) return false;
-  return `${pattern.code} ${pattern.name}`.includes("有休") || `${pattern.code} ${pattern.name}`.includes("有給");
+  const text = `${pattern.code} ${pattern.name}`.toUpperCase();
+  return pattern.category === "PAID_LEAVE" || /PAID|YU|有休|有給/.test(text);
 }
 
 function patternCategory(pattern: WorkPatternRow): PatternCategory {
@@ -334,7 +335,7 @@ export function ShiftMonthlyGrid({
 
     const notices: string[] = [];
     if (conflictCount > 0) {
-      notices.push(`承認済み休暇がありますが、既存シフトがあるため${conflictCount}件は自動反映していません。`);
+      notices.push(`承認済み休暇がありますが、既存シフトがあるため ${conflictCount}件は自動反映していません。`);
     }
     if (missingPatternCount > 0) {
       notices.push(`休暇用の勤務パターンが未登録のため、${missingPatternCount}件は自動反映していません。`);
