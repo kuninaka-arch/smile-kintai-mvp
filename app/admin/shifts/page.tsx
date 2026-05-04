@@ -3,6 +3,7 @@ import { requireAdmin } from "@/components/RequireAuth";
 import Link from "next/link";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { ShiftMonthlyGrid } from "@/components/ShiftMonthlyGrid";
+import { isCareCompany } from "@/lib/industry";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
@@ -106,6 +107,12 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
   const { start, end } = tokyoMonthRange(year, month);
   const dayCount = daysInMonth(year, month);
 
+  const company = await prisma.company.findUnique({
+    where: { id: session.user.companyId },
+    select: { industryType: true }
+  });
+  const enableAfterNightAutoFill = isCareCompany(company?.industryType);
+
   const users = await getShiftUsers(session.user.companyId);
   const shifts = await withDbRetry(
     () => prisma.shift.findMany({
@@ -172,11 +179,13 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
     id: pattern.id,
     code: pattern.code,
     name: pattern.name,
+    category: pattern.category,
     startTime: pattern.startTime,
     endTime: pattern.endTime,
     breakMinutes: pattern.breakMinutes,
     colorClass: pattern.colorClass,
-    isHoliday: pattern.isHoliday
+    isHoliday: pattern.isHoliday,
+    autoCreateAfterNight: pattern.autoCreateAfterNight
   }));
 
   const initialEvents = events.map((event) => ({
@@ -253,6 +262,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: { ym?
             workPatterns={workPatternRows}
             initialEvents={initialEvents}
             departments={departments}
+            enableAfterNightAutoFill={enableAfterNightAutoFill}
           />
         </div>
       </section>

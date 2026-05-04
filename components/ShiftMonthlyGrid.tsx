@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -30,11 +30,13 @@ type WorkPatternRow = {
   id: string;
   code: string;
   name: string;
+  category: string;
   startTime: string;
   endTime: string;
   breakMinutes: number;
   colorClass: string;
   isHoliday: boolean;
+  autoCreateAfterNight: boolean;
 };
 
 type InitialEvent = {
@@ -65,6 +67,12 @@ function pad(n: number) {
 
 function dateStr(year: number, month: number, day: number) {
   return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function nextDateStr(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(year, month - 1, day + 1);
+  return dateStr(next.getFullYear(), next.getMonth() + 1, next.getDate());
 }
 
 function nthMonday(year: number, month: number, nth: number) {
@@ -187,7 +195,8 @@ export function ShiftMonthlyGrid({
   initialShifts,
   workPatterns,
   initialEvents,
-  departments
+  departments,
+  enableAfterNightAutoFill = false
 }: {
   ym: string;
   year: number;
@@ -198,6 +207,7 @@ export function ShiftMonthlyGrid({
   workPatterns: WorkPatternRow[];
   initialEvents: InitialEvent[];
   departments: string[];
+  enableAfterNightAutoFill?: boolean;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -217,6 +227,7 @@ export function ShiftMonthlyGrid({
 
   const patternsById = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.id, pattern])), [workPatterns]);
   const patternsByCode = useMemo(() => Object.fromEntries(workPatterns.map((pattern) => [pattern.code, pattern])), [workPatterns]);
+  const afterNightPattern = useMemo(() => workPatterns.find((pattern) => pattern.category === "AFTER_NIGHT") ?? null, [workPatterns]);
   const selectedPattern = selectedPatternId ? patternsById[selectedPatternId] ?? null : null;
   const favoritePatterns = useMemo(() => {
     const preferredCodes = ["A", "D1", "OFF", "PAID", "E1", "L1", "N1", "P1"];
@@ -278,6 +289,10 @@ export function ShiftMonthlyGrid({
   }, [initialShifts, patternsByCode, patternsById, workPatterns]);
 
   const [cells, setCells] = useState<Record<string, string>>(initialMap);
+  const cellsRef = useRef<Record<string, string>>(initialMap);
+  useEffect(() => {
+    cellsRef.current = cells;
+  }, [cells]);
 
   const initialEventMap = useMemo(() => Object.fromEntries(initialEvents.map((event) => [event.date, event.title])), [initialEvents]);
   const [events, setEvents] = useState<Record<string, string>>(initialEventMap);
@@ -335,7 +350,33 @@ export function ShiftMonthlyGrid({
 
   function setCell(userId: string, date: string, patternId = selectedPatternId) {
     if (!patternId) return;
-    setCells((prev) => ({ ...prev, [toKey(userId, date)]: patternId }));
+    const pattern = patternsById[patternId];
+    const currentCells = cellsRef.current;
+    const next = { ...currentCells, [toKey(userId, date)]: patternId };
+    let nextMessage = "";
+
+    if (enableAfterNightAutoFill && pattern?.category === "NIGHT" && pattern.autoCreateAfterNight) {
+      if (!afterNightPattern) {
+        nextMessage = "明け勤務パターンが未登録です。勤務パターン管理で区分「明け」を登録してください。";
+      } else {
+        const nextDay = nextDateStr(date);
+        if (!days.some((day) => day.dateStr === nextDay)) {
+          nextMessage = "月末を跨ぐ夜勤のため、翌日の明けは自動設定されませんでした。";
+        } else {
+          const afterNightKey = toKey(userId, nextDay);
+          if (currentCells[afterNightKey]) {
+            nextMessage = "翌日に既存シフトがあるため、明けは自動設定されませんでした。";
+          } else {
+            next[afterNightKey] = afterNightPattern.id;
+            nextMessage = "夜勤の翌日に明けを自動設定しました。保存前に内容を確認してください。";
+          }
+        }
+      }
+    }
+
+    cellsRef.current = next;
+    setCells(next);
+    if (nextMessage) setMessage(nextMessage);
   }
 
   function clearCell(userId: string, date: string) {
