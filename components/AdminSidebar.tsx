@@ -56,16 +56,18 @@ const masterItems: MenuItem[] = [
 
 const careItems: MenuItem[] = [
   { href: "/admin/care", label: "介護ダッシュボード", key: "care", icon: "dashboard" },
-  { href: "/admin/care/shifts", label: "シフト管理", key: "care-shifts", icon: "shifts" },
-  { href: "/admin/care/leaves", label: "休暇・希望休管理", key: "care-leaves", icon: "leave" },
+  { href: "/admin/shifts", label: "シフト管理", key: "shifts", icon: "shifts" },
+  { href: "/admin/monthly", label: "勤怠管理", key: "monthly", icon: "calendar" },
+  { href: "/admin/leaves", label: "休暇・希望休", key: "leaves", icon: "leave" },
   { href: "/admin/care/staffing", label: "人員配置表", key: "care-staffing", icon: "users" },
-  { href: "/admin/care/staffing-rules", label: "人員配置基準設定", key: "care-staffing-rules", icon: "database" },
   { href: "/admin/care/full-time-equivalent", label: "常勤換算表", key: "care-fte", icon: "chart" },
   { href: "/admin/care/qualifications", label: "資格者配置表", key: "care-qualifications", icon: "badge" },
   { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
   { href: "/admin/care/addition-reports", label: "加算資料", key: "care-addition-reports", icon: "database" },
   { href: "/admin/care/report-exports", label: "帳票出力", key: "care-report-exports", icon: "briefcase" },
-  { href: "/admin/care/ai-help", label: "AI問い合わせ管理", key: "care-ai-help", icon: "shield" }
+  { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
+  { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },
+  { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }
 ];
 
 function MenuIcon({ name }: { name: IconName }) {
@@ -259,34 +261,38 @@ export async function AdminSidebar({ active }: { active: string }) {
         </div>
 
         <nav className="relative flex-1 space-y-5 overflow-y-auto p-4">
-          <div>
-            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">業務メニュー</div>
-            <div className="space-y-1">{mainItems.map((menuItem) => item(menuItem))}</div>
-          </div>
-
-          {showCareMenu && (
+          {showCareMenu ? (
             <div>
               <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-emerald-300/80">介護施設モード</div>
               <div className="space-y-1">{careItems.map((menuItem) => item(menuItem))}</div>
             </div>
-          )}
+          ) : (
+            <>
+              <div>
+                <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">業務メニュー</div>
+                <div className="space-y-1">{mainItems.map((menuItem) => item(menuItem))}</div>
+              </div>
 
-          <div>
-            <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">マスタ管理</div>
-            <div className="space-y-1">{masterItems.map((menuItem) => item(menuItem))}</div>
-          </div>
+              <div>
+                <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">マスタ管理</div>
+                <div className="space-y-1">{masterItems.map((menuItem) => item(menuItem))}</div>
+              </div>
+            </>
+          )}
         </nav>
 
         <div className="relative border-t border-white/10 p-4">
-          <Link
-            href="/home"
-            className="mb-3 flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-2.5 text-sm font-black text-slate-200 transition hover:bg-white/10 hover:text-white"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10">
-              <MenuIcon name="punch" />
-            </span>
-            打刻画面へ
-          </Link>
+          {!showCareMenu && (
+            <Link
+              href="/home"
+              className="mb-3 flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-2.5 text-sm font-black text-slate-200 transition hover:bg-white/10 hover:text-white"
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10">
+                <MenuIcon name="punch" />
+              </span>
+              打刻画面へ
+            </Link>
+          )}
           <SignOutButton variant="dark" />
         </div>
       </div>
