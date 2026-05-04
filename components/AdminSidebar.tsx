@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { SignOutButton } from "@/components/SignOutButton";
+import { authOptions } from "@/lib/auth";
+import { isCareCompany } from "@/lib/industry";
+import { prisma } from "@/lib/prisma";
 
 type IconName =
   | "dashboard"
@@ -48,6 +52,19 @@ const masterItems: MenuItem[] = [
   { href: "/admin/masters/roles", label: "権限マスタ", key: "masters", icon: "shield" },
   { href: "/admin/masters/leave-types", label: "休暇種別マスタ", key: "masters", icon: "leave" },
   { href: "/admin/masters/work-patterns", label: "勤務パターンマスタ", key: "masters", icon: "clock" }
+];
+
+const careItems: MenuItem[] = [
+  { href: "/admin/care", label: "介護ダッシュボード", key: "care", icon: "dashboard" },
+  { href: "/admin/care/shifts", label: "シフト管理", key: "care-shifts", icon: "shifts" },
+  { href: "/admin/care/leaves", label: "休暇・希望休管理", key: "care-leaves", icon: "leave" },
+  { href: "/admin/care/staffing", label: "人員配置表", key: "care-staffing", icon: "users" },
+  { href: "/admin/care/full-time-equivalent", label: "常勤換算表", key: "care-fte", icon: "chart" },
+  { href: "/admin/care/qualifications", label: "資格者配置表", key: "care-qualifications", icon: "badge" },
+  { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
+  { href: "/admin/care/addition-reports", label: "加算資料", key: "care-addition-reports", icon: "database" },
+  { href: "/admin/care/report-exports", label: "帳票出力", key: "care-report-exports", icon: "briefcase" },
+  { href: "/admin/care/ai-help", label: "AI問い合わせ管理", key: "care-ai-help", icon: "shield" }
 ];
 
 function MenuIcon({ name }: { name: IconName }) {
@@ -189,7 +206,16 @@ function MenuIcon({ name }: { name: IconName }) {
   );
 }
 
-export function AdminSidebar({ active }: { active: string }) {
+export async function AdminSidebar({ active }: { active: string }) {
+  const session = await getServerSession(authOptions);
+  const company = session?.user.companyId
+    ? await prisma.company.findUnique({
+        where: { id: session.user.companyId },
+        select: { industryType: true }
+      })
+    : null;
+  const showCareMenu = isCareCompany(company?.industryType);
+
   const item = ({ href, label, key, icon }: MenuItem) => {
     const isActive = active === key;
 
@@ -236,6 +262,13 @@ export function AdminSidebar({ active }: { active: string }) {
             <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">業務メニュー</div>
             <div className="space-y-1">{mainItems.map((menuItem) => item(menuItem))}</div>
           </div>
+
+          {showCareMenu && (
+            <div>
+              <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-emerald-300/80">介護施設モード</div>
+              <div className="space-y-1">{careItems.map((menuItem) => item(menuItem))}</div>
+            </div>
+          )}
 
           <div>
             <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">マスタ管理</div>

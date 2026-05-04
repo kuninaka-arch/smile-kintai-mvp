@@ -12,6 +12,14 @@ enum Role {
   EMPLOYEE
 }
 
+enum IndustryType {
+  general
+  care
+  restaurant
+  cleaning
+  construction
+}
+
 enum AttendanceType {
   CLOCK_IN
   CLOCK_OUT
@@ -23,6 +31,7 @@ model Company {
   id        String   @id @default(cuid())
   name      String
   code      String   @unique
+  industryType IndustryType @default(general)
   closingDay Int     @default(31)
   users     User[]
   departments Department[]

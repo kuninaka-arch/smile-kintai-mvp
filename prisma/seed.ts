@@ -146,8 +146,8 @@ async function main() {
 
   const company = await prisma.company.upsert({
     where: { code: "SMILE" },
-    update: { name: "スマイル介護施設", closingDay: 31 },
-    create: { name: "スマイル介護施設", code: "SMILE", closingDay: 31 }
+    update: { name: "スマイル介護施設", industryType: "general", closingDay: 31 },
+    create: { name: "スマイル介護施設", code: "SMILE", industryType: "general", closingDay: 31 }
   });
 
   const departmentMasters = await Promise.all(
