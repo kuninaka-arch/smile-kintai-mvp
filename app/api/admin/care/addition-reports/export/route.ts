@@ -1,27 +1,14 @@
-import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
+import { requireCareCompany } from "@/lib/authz";
 import { buildCareAdditionReportSummary, parseCareAdditionYm } from "@/lib/care-addition-report";
 import { createCareAdditionExcel, createCareAdditionPdf } from "@/lib/care-report-files";
-import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 
 const reportType = "CARE_ADDITION_SUMMARY";
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
-
-  if (!isCareCompany(company?.industryType)) {
-    return NextResponse.json({ error: "Care mode only" }, { status: 403 });
-  }
+  const auth = await requireCareCompany();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const url = new URL(req.url);
   const { ym } = parseCareAdditionYm(url.searchParams.get("ym"));

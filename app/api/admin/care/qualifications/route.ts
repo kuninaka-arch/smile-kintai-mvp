@@ -1,31 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { isCareCompany } from "@/lib/industry";
+import { requireCareCompany } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 const defaultQualifications = ["介護福祉士", "看護師", "准看護師", "PT", "OT", "ST", "介護支援専門員", "生活相談員"];
 
-async function requireCareAdmin() {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
-  if (!isCareCompany(company?.industryType)) {
-    return { error: NextResponse.json({ error: "Care mode only" }, { status: 403 }) };
-  }
-
-  return { session };
-}
-
 export async function POST(req: Request) {
-  const auth = await requireCareAdmin();
-  if ("error" in auth) return auth.error;
+  const auth = await requireCareCompany();
+  if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
@@ -110,5 +91,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, message: "資格別必要人数を保存しました。" });
   }
 
-  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  return NextResponse.json({ error: "操作種別が正しくありません。" }, { status: 400 });
 }

@@ -10,6 +10,10 @@ export function isCareCompany(industryType: IndustryTypeValue) {
   return normalizeIndustryType(industryType) === "care";
 }
 
+export function isGeneralCompany(industryType: IndustryTypeValue) {
+  return normalizeIndustryType(industryType) === "general";
+}
+
 export function isRestaurantCompany(industryType: IndustryTypeValue) {
   return normalizeIndustryType(industryType) === "restaurant";
 }

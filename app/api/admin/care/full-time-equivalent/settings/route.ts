@@ -1,22 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { isCareCompany } from "@/lib/industry";
+import { requireCareCompany } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
-  if (!isCareCompany(company?.industryType)) {
-    return NextResponse.json({ error: "Care mode only" }, { status: 403 });
-  }
+  const auth = await requireCareCompany();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json().catch(() => ({}));
   const standardMonthlyHours = Number(body.standardMonthlyHours ?? 160);
