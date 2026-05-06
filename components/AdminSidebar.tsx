@@ -34,13 +34,14 @@ type MenuItem = {
 const mainItems: MenuItem[] = [
   { href: "/admin", label: "ダッシュボード", key: "dashboard", icon: "dashboard" },
   { href: "/admin/monthly", label: "月次勤怠集計", key: "monthly", icon: "calendar" },
-  { href: "/admin/employee-monthly", label: "個人別明細", key: "monthly", icon: "userDetail" },
+  { href: "/admin/employee-monthly", label: "個人別明細", key: "employee-monthly", icon: "userDetail" },
   { href: "/admin/attendance-analysis", label: "勤怠分析", key: "attendance-analysis", icon: "chart" },
   { href: "/admin/shifts", label: "シフト設定", key: "shifts", icon: "shifts" },
   { href: "/admin/leaves", label: "休暇申請承認", key: "leaves", icon: "leave" },
   { href: "/admin/corrections", label: "打刻修正申請", key: "corrections", icon: "edit" },
   { href: "/admin/gps", label: "GPS地図表示", key: "gps", icon: "map" },
-  { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" }
+  { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
+  { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" }
 ];
 
 const masterItems: MenuItem[] = [
@@ -65,6 +66,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
   { href: "/admin/care/addition-reports", label: "加算資料", key: "care-addition-reports", icon: "database" },
   { href: "/admin/care/report-exports", label: "帳票出力履歴", key: "care-report-exports", icon: "briefcase" },
+  { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },
   { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }
