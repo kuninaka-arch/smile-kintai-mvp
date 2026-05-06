@@ -1,21 +1,21 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   if (!body.name || !body.email || !body.password) {
-    return NextResponse.json({ error: "必須項目が不足しています。" }, { status: 400 });
+    return apiError("必須項目が不足しています。", 400);
   }
 
   const exists = await prisma.user.findUnique({ where: { email: body.email } });
-  if (exists) return NextResponse.json({ error: "このメールアドレスは登録済みです。" }, { status: 400 });
+  if (exists) return apiError("このメールアドレスは登録済みです。", 400);
 
   const roleMaster = body.roleMasterId
     ? await prisma.roleMaster.findFirst({
@@ -35,8 +35,8 @@ export async function POST(req: Request) {
   const user = await prisma.user.create({
     data: {
       companyId: session.user.companyId,
-      name: body.name,
-      email: body.email,
+      name: String(body.name),
+      email: String(body.email),
       department: body.department || null,
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 0,
       positionMasterId: positionMaster?.id ?? null,
@@ -53,5 +53,17 @@ export async function POST(req: Request) {
     data: { companyId: session.user.companyId, userId: user.id, grantedDays: 10, usedDays: 0 }
   });
 
-  return NextResponse.json({ ok: true });
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "CREATE_EMPLOYEE",
+    targetType: "EMPLOYEE",
+    targetId: user.id,
+    after: safeUser,
+    meta: { roleMasterId: roleMaster?.id ?? null, positionMasterId: positionMaster?.id ?? null }
+  });
+
+  return Response.json({ ok: true });
 }

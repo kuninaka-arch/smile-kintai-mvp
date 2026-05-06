@@ -1,21 +1,21 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 import { defaultWorkPatternFlags, normalizeWorkPatternCategory } from "@/lib/work-pattern-category";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
 
   const item = await prisma.workPattern.findFirst({
     where: { id: params.id, companyId: session.user.companyId }
   });
 
-  if (!item) return NextResponse.json({ error: "対象が見つかりません。" }, { status: 404 });
+  if (!item) return apiError("対象が見つかりません。", 404);
 
   const company = await prisma.company.findUnique({
     where: { id: session.user.companyId },
@@ -25,7 +25,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const category = isCare ? normalizeWorkPatternCategory(body.category) : item.category;
   const defaults = defaultWorkPatternFlags(category);
 
-  await prisma.workPattern.update({
+  const updated = await prisma.workPattern.update({
     where: { id: params.id },
     data: {
       code: body.code,
@@ -46,5 +46,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
   });
 
-  return NextResponse.json({ ok: true });
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "UPDATE_WORK_PATTERN",
+    targetType: "WORK_PATTERN",
+    targetId: updated.id,
+    before: item,
+    after: updated,
+    meta: { isCare }
+  });
+
+  return Response.json({ ok: true });
 }

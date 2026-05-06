@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 import { defaultWorkPatternFlags, normalizeWorkPatternCategory } from "@/lib/work-pattern-category";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const company = await prisma.company.findUnique({
     where: { id: session.user.companyId },
     select: { industryType: true }
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const defaults = defaultWorkPatternFlags(category);
 
   try {
-    await prisma.workPattern.create({
+    const pattern = await prisma.workPattern.create({
       data: {
         companyId: session.user.companyId,
         code: body.code,
@@ -40,8 +40,19 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({ ok: true });
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "CREATE_WORK_PATTERN",
+      targetType: "WORK_PATTERN",
+      targetId: pattern.id,
+      after: pattern,
+      meta: { isCare }
+    });
+
+    return Response.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "登録に失敗しました。コードが重複している可能性があります。" }, { status: 400 });
+    return apiError("登録に失敗しました。コードが重複している可能性があります。", 400);
   }
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { logAction } from "@/lib/audit-log";
 import { requireCareCompany } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -17,19 +17,29 @@ export async function POST(req: Request) {
     where: { companyId: session.user.companyId }
   });
 
-  if (existing) {
-    await prisma.careFullTimeEquivalentRule.update({
-      where: { id: existing.id },
-      data: { standardMonthlyMinutes }
-    });
-  } else {
-    await prisma.careFullTimeEquivalentRule.create({
-      data: {
-        companyId: session.user.companyId,
-        standardMonthlyMinutes
-      }
-    });
-  }
+  const saved = existing
+    ? await prisma.careFullTimeEquivalentRule.update({
+        where: { id: existing.id },
+        data: { standardMonthlyMinutes }
+      })
+    : await prisma.careFullTimeEquivalentRule.create({
+        data: {
+          companyId: session.user.companyId,
+          standardMonthlyMinutes
+        }
+      });
 
-  return NextResponse.json({ ok: true });
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "SAVE_FTE_RULE",
+    targetType: "FTE_RULE",
+    targetId: saved.id,
+    before: existing,
+    after: saved,
+    meta: { standardMonthlyHours }
+  });
+
+  return Response.json({ ok: true });
 }

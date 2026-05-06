@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { WorkPatternCategory } from "@prisma/client";
+import { logAction } from "@/lib/audit-log";
 import { requireCareCompany } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -17,8 +17,12 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const rules = Array.isArray(body.rules) ? body.rules : [];
+  const before = await prisma.careStaffingRule.findMany({
+    where: { companyId: session.user.companyId, floorId: null, departmentId: null },
+    orderBy: { category: "asc" }
+  });
 
-  await prisma.$transaction(async (tx) => {
+  const updatedRules = await prisma.$transaction(async (tx) => {
     for (const rule of rules) {
       const category = rule.category as WorkPatternCategory;
       if (!targetCategories.has(category)) continue;
@@ -49,7 +53,23 @@ export async function POST(req: Request) {
         });
       }
     }
+
+    return tx.careStaffingRule.findMany({
+      where: { companyId: session.user.companyId, floorId: null, departmentId: null },
+      orderBy: { category: "asc" }
+    });
   });
 
-  return NextResponse.json({ ok: true });
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "SAVE_STAFFING_RULES",
+    targetType: "STAFFING_RULE",
+    targetId: session.user.companyId,
+    before,
+    after: updatedRules
+  });
+
+  return Response.json({ ok: true });
 }

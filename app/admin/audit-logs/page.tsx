@@ -14,14 +14,35 @@ const actionLabels: Record<string, string> = {
   APPROVE_LEAVE: "休暇承認",
   REJECT_LEAVE: "休暇却下",
   SAVE_SHIFT_BULK: "シフト一括保存",
-  EXPORT_REPORT: "帳票出力"
+  EXPORT_REPORT: "帳票出力",
+  UPDATE_COMPANY: "会社設定変更",
+  CREATE_EMPLOYEE: "社員追加",
+  UPDATE_EMPLOYEE: "社員変更",
+  CREATE_WORK_PATTERN: "勤務パターン追加",
+  UPDATE_WORK_PATTERN: "勤務パターン変更",
+  SAVE_STAFFING_RULES: "人員配置基準変更",
+  SAVE_FTE_RULE: "常勤換算基準変更",
+  SEED_QUALIFICATIONS: "標準資格追加",
+  CREATE_QUALIFICATION: "資格マスタ追加",
+  UPDATE_QUALIFICATION: "資格マスタ変更",
+  ASSIGN_QUALIFICATION: "スタッフ資格付与",
+  REMOVE_QUALIFICATION: "スタッフ資格解除",
+  SAVE_QUALIFICATION_RULES: "資格別必要人数変更"
 };
 
 const targetTypeLabels: Record<string, string> = {
   CORRECTION: "打刻修正",
   LEAVE: "休暇申請",
   SHIFT: "シフト",
-  REPORT: "帳票"
+  REPORT: "帳票",
+  COMPANY: "会社",
+  EMPLOYEE: "社員",
+  WORK_PATTERN: "勤務パターン",
+  STAFFING_RULE: "人員配置基準",
+  FTE_RULE: "常勤換算基準",
+  QUALIFICATION: "資格マスタ",
+  USER_QUALIFICATION: "スタッフ資格",
+  QUALIFICATION_RULE: "資格別必要人数"
 };
 
 function labelFor(map: Record<string, string>, value: string | null | undefined) {
