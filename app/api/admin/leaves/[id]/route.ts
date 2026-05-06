@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { LeaveRequestStatus, LeaveRequestUnit, WorkPatternCategory } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
-import { isDateLocked } from "@/lib/period-lock";
+
+const validStatuses: LeaveRequestStatus[] = ["PENDING", "APPROVED", "REJECTED"];
 
 function colorForLeave(code: string) {
   if (code === "PAID") return "bg-amber-200 text-slate-900";
@@ -27,7 +26,7 @@ function tokyoDateRange(date: Date) {
   const start = new Date(`${key}T00:00:00+09:00`);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 1);
-  return { key, start, end };
+  return { start, end };
 }
 
 function leavePatternCategory(code: string, name: string) {
@@ -38,20 +37,24 @@ function leavePatternCategory(code: string, name: string) {
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const status = body.status as LeaveRequestStatus;
+  if (!validStatuses.includes(status)) {
+    return apiError("休暇申請の処理状態が正しくありません。", 400);
+  }
 
   const request = await prisma.leaveRequest.findFirst({
     where: { id: params.id, companyId: session.user.companyId },
     include: { leaveType: true }
   });
-  if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (await isDateLocked(session.user.companyId, request.targetDate)) {
-    return NextResponse.json({ error: "締め済み期間のため、休暇申請は変更できません。" }, { status: 423 });
-  }
+  if (!request) return apiError("休暇申請が見つかりません。", 404);
+
+  const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "休暇申請");
+  if (lockError) return lockError;
 
   const company = await prisma.company.findUnique({
     where: { id: session.user.companyId },
@@ -157,5 +160,5 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
   });
 
-  return NextResponse.json({ ok: true });
+  return Response.json({ ok: true });
 }

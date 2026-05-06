@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { getPeriodLock } from "@/lib/period-lock";
 
 function tokyoDate(date: string) {
   return new Date(`${date}T00:00:00+09:00`);
@@ -17,24 +14,43 @@ function tokyoMonthRange(ym: string) {
   return { start, end };
 }
 
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function isValidYm(ym: string) {
+  return /^\d{4}-\d{2}$/.test(ym);
+}
+
+async function requireUnlockedMonth(companyId: string, start: Date, end: Date) {
+  for (let date = new Date(start); date < end; date = addDays(date, 1)) {
+    const lockError = await requireUnlockedDate(companyId, date, "シフト");
+    if (lockError) return lockError;
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
+  const body = await req.json().catch(() => ({}));
+  const ym = String(body.ym ?? "");
+  if (!isValidYm(ym)) {
+    return apiError("対象年月が正しくありません。", 400);
   }
 
-  const body = await req.json();
-  const ym = body.ym as string;
-  const period = await getPeriodLock(session.user.companyId, ym);
-  if (period.locked) {
-    return NextResponse.json({ error: "締め済み期間のため、シフトは変更できません。" }, { status: 423 });
-  }
   const { start, end } = tokyoMonthRange(ym);
+  const lockError = await requireUnlockedMonth(session.user.companyId, start, end);
+  if (lockError) return lockError;
 
   const shifts = Array.isArray(body.shifts) ? body.shifts : [];
   const events = Array.isArray(body.events) ? body.events : [];
 
-  // 対象月の既存シフトを一度削除し、一括再登録するMVP仕様
+  // MVP仕様: 対象月の既存シフトを削除し、画面上の内容で再作成する。
   await prisma.shift.deleteMany({
     where: {
       companyId: session.user.companyId,
@@ -92,5 +108,5 @@ export async function POST(req: Request) {
     // ShiftEvent may not exist until prisma db push is run in production.
   }
 
-  return NextResponse.json({ ok: true, count: shifts.length, eventCount: eventData.length });
+  return Response.json({ ok: true, count: shifts.length, eventCount: eventData.length });
 }

@@ -1,33 +1,39 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { LeaveRequestUnit } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+import { apiError, requireCompanyUser, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { isDateLocked } from "@/lib/period-lock";
+
+function tokyoDate(date: string) {
+  return new Date(`${date}T00:00:00+09:00`);
+}
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireCompanyUser();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const targetDateText = String(body.targetDate ?? "");
+  const targetDate = tokyoDate(targetDateText);
+  if (!targetDateText || Number.isNaN(targetDate.getTime())) {
+    return apiError("対象日が正しくありません。", 400);
+  }
+
+  const lockError = await requireUnlockedDate(session.user.companyId, targetDate, "休暇申請");
+  if (lockError) return lockError;
+
   const leaveType = await prisma.leaveTypeMaster.findFirst({
     where: { id: body.leaveTypeId, companyId: session.user.companyId, isActive: true }
   });
-  if (!leaveType) return NextResponse.json({ error: "休暇種別が見つかりません。" }, { status: 400 });
+  if (!leaveType) return apiError("休暇種別が見つかりません。", 400);
 
   const unit = body.unit === "HOUR" ? LeaveRequestUnit.HOUR : LeaveRequestUnit.FULL_DAY;
   if (unit === LeaveRequestUnit.HOUR && !leaveType.allowHourly) {
-    return NextResponse.json({ error: "この休暇種別は時間単位で申請できません。" }, { status: 400 });
+    return apiError("この休暇種別は時間単位で申請できません。", 400);
   }
 
   const hours = unit === LeaveRequestUnit.HOUR ? Number(body.hours ?? 0) : null;
   if (unit === LeaveRequestUnit.HOUR && (!hours || hours <= 0)) {
-    return NextResponse.json({ error: "時間数を入力してください。" }, { status: 400 });
-  }
-
-  const targetDate = new Date(`${body.targetDate}T00:00:00+09:00`);
-  if (await isDateLocked(session.user.companyId, targetDate)) {
-    return NextResponse.json({ error: "締め済み期間のため、休暇申請はできません。" }, { status: 423 });
+    return apiError("時間数を入力してください。", 400);
   }
 
   await prisma.leaveRequest.create({
@@ -38,9 +44,9 @@ export async function POST(req: Request) {
       targetDate,
       unit,
       hours,
-      reason: body.reason
+      reason: String(body.reason ?? "")
     }
   });
 
-  return NextResponse.json({ ok: true });
+  return Response.json({ ok: true });
 }

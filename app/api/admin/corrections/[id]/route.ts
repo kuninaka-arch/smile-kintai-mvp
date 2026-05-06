@@ -1,24 +1,27 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { CorrectionStatus } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { isDateLocked } from "@/lib/period-lock";
+
+const validStatuses: CorrectionStatus[] = ["PENDING", "APPROVED", "REJECTED"];
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const status = body.status as CorrectionStatus;
+  if (!validStatuses.includes(status)) {
+    return apiError("打刻修正申請の処理状態が正しくありません。", 400);
+  }
 
   const request = await prisma.attendanceCorrectionRequest.findFirst({
     where: { id: params.id, companyId: session.user.companyId }
   });
-  if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (await isDateLocked(session.user.companyId, request.targetDate)) {
-    return NextResponse.json({ error: "締め済み期間のため、打刻修正申請は変更できません。" }, { status: 423 });
-  }
+  if (!request) return apiError("打刻修正申請が見つかりません。", 404);
+
+  const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "打刻修正申請");
+  if (lockError) return lockError;
 
   await prisma.attendanceCorrectionRequest.update({
     where: { id: params.id },
@@ -37,5 +40,5 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return Response.json({ ok: true });
 }
