@@ -1,3 +1,4 @@
+import { logAction } from "@/lib/audit-log";
 import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -49,6 +50,14 @@ export async function POST(req: Request) {
 
   const shifts = Array.isArray(body.shifts) ? body.shifts : [];
   const events = Array.isArray(body.events) ? body.events : [];
+  const beforeCounts = {
+    shifts: await prisma.shift.count({
+      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
+    }),
+    events: await prisma.shiftEvent.count({
+      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
+    }).catch(() => 0)
+  };
 
   // MVP仕様: 対象月の既存シフトを削除し、画面上の内容で再作成する。
   await prisma.shift.deleteMany({
@@ -107,6 +116,18 @@ export async function POST(req: Request) {
   } catch {
     // ShiftEvent may not exist until prisma db push is run in production.
   }
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "SAVE_SHIFT_BULK",
+    targetType: "SHIFT",
+    targetId: ym,
+    before: beforeCounts,
+    after: { shifts: shifts.length, events: eventData.length },
+    meta: { ym, start, end }
+  });
 
   return Response.json({ ok: true, count: shifts.length, eventCount: eventData.length });
 }

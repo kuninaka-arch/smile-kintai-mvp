@@ -1,8 +1,9 @@
 import { CorrectionStatus } from "@prisma/client";
+import { logAction } from "@/lib/audit-log";
 import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
-const validStatuses: CorrectionStatus[] = ["PENDING", "APPROVED", "REJECTED"];
+const validStatuses: CorrectionStatus[] = ["APPROVED", "REJECTED"];
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
@@ -23,7 +24,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "打刻修正申請");
   if (lockError) return lockError;
 
-  await prisma.attendanceCorrectionRequest.update({
+  const updated = await prisma.attendanceCorrectionRequest.update({
     where: { id: params.id },
     data: { status }
   });
@@ -39,6 +40,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     });
   }
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: status === "APPROVED" ? "APPROVE_CORRECTION" : "REJECT_CORRECTION",
+    targetType: "CORRECTION",
+    targetId: request.id,
+    before: request,
+    after: updated,
+    meta: { status }
+  });
 
   return Response.json({ ok: true });
 }

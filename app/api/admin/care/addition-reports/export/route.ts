@@ -1,4 +1,5 @@
 import { requireCareCompany } from "@/lib/authz";
+import { logAction } from "@/lib/audit-log";
 import { buildCareAdditionReportSummary, parseCareAdditionYm } from "@/lib/care-addition-report";
 import { createCareAdditionExcel, createCareAdditionPdf } from "@/lib/care-report-files";
 import { prisma } from "@/lib/prisma";
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   const fileType = fileTypeParam === "pdf" ? "PDF" : "EXCEL";
   const summary = await buildCareAdditionReportSummary(session.user.companyId, ym);
 
-  await prisma.reportExportHistory.create({
+  const history = await prisma.reportExportHistory.create({
     data: {
       companyId: session.user.companyId,
       userId: session.user.id,
@@ -24,6 +25,17 @@ export async function GET(req: Request) {
       fileType,
       targetMonth: ym
     }
+  });
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "EXPORT_REPORT",
+    targetType: "REPORT",
+    targetId: history.id,
+    after: history,
+    meta: { reportType, fileType, targetMonth: ym }
   });
 
   if (fileType === "PDF") {

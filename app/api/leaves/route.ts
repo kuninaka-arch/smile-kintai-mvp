@@ -1,4 +1,5 @@
 import { LeaveRequestUnit } from "@prisma/client";
+import { logAction } from "@/lib/audit-log";
 import { apiError, requireCompanyUser, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     return apiError("時間数を入力してください。", 400);
   }
 
-  await prisma.leaveRequest.create({
+  const leave = await prisma.leaveRequest.create({
     data: {
       companyId: session.user.companyId,
       userId: session.user.id,
@@ -46,6 +47,17 @@ export async function POST(req: Request) {
       hours,
       reason: String(body.reason ?? "")
     }
+  });
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "CREATE_LEAVE",
+    targetType: "LEAVE",
+    targetId: leave.id,
+    after: leave,
+    meta: { leaveTypeName: leaveType.name, targetDate: targetDateText }
   });
 
   return Response.json({ ok: true });

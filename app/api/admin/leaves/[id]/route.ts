@@ -1,9 +1,10 @@
 import { LeaveRequestStatus, LeaveRequestUnit, WorkPatternCategory } from "@prisma/client";
+import { logAction } from "@/lib/audit-log";
 import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 
-const validStatuses: LeaveRequestStatus[] = ["PENDING", "APPROVED", "REJECTED"];
+const validStatuses: LeaveRequestStatus[] = ["APPROVED", "REJECTED"];
 
 function colorForLeave(code: string) {
   if (code === "PAID") return "bg-amber-200 text-slate-900";
@@ -62,13 +63,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   });
   const careMode = isCareCompany(company?.industryType);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.leaveRequest.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedRequest = await tx.leaveRequest.update({
       where: { id: request.id },
       data: { status, approvedAt: status === "APPROVED" ? new Date() : null }
     });
 
-    if (status !== "APPROVED") return;
+    if (status !== "APPROVED") return updatedRequest;
 
     const usedDays = request.unit === LeaveRequestUnit.HOUR
       ? Number(request.hours ?? 0) / 8
@@ -138,7 +139,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         workPatternId: pattern.id
       };
       if (existingShift) {
-        if (careMode) return;
+        if (careMode) return updatedRequest;
         await tx.shift.update({ where: { id: existingShift.id }, data: shiftData });
         await tx.shift.deleteMany({
           where: {
@@ -158,6 +159,20 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         });
       }
     }
+
+    return updatedRequest;
+  });
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: status === "APPROVED" ? "APPROVE_LEAVE" : "REJECT_LEAVE",
+    targetType: "LEAVE",
+    targetId: request.id,
+    before: request,
+    after: updated,
+    meta: { status, leaveTypeName: request.leaveType.name }
   });
 
   return Response.json({ ok: true });

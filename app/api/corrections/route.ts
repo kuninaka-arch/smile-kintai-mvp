@@ -1,4 +1,5 @@
 import { AttendanceType } from "@prisma/client";
+import { logAction } from "@/lib/audit-log";
 import { apiError, requireCompanyUser, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   const lockError = await requireUnlockedDate(session.user.companyId, targetDate, "打刻修正申請");
   if (lockError) return lockError;
 
-  await prisma.attendanceCorrectionRequest.create({
+  const correction = await prisma.attendanceCorrectionRequest.create({
     data: {
       companyId: session.user.companyId,
       userId: session.user.id,
@@ -44,6 +45,17 @@ export async function POST(req: Request) {
       requestedType,
       reason: String(body.reason ?? "")
     }
+  });
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "CREATE_CORRECTION",
+    targetType: "CORRECTION",
+    targetId: correction.id,
+    after: correction,
+    meta: { targetDate: targetDateText, requestedTime: requestedTimeText }
   });
 
   return Response.json({ ok: true });
