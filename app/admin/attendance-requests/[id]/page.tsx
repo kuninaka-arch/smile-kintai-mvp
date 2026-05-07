@@ -88,6 +88,62 @@ function InfoItem({ label, value, mono = false }: { label: string; value: string
   );
 }
 
+function ApprovalOperationPanel({
+  requestType,
+  status,
+  legacyCorrectionRequestId
+}: {
+  requestType: RequestType;
+  status: RequestStatus;
+  legacyCorrectionRequestId: string;
+}) {
+  const isAttendanceCorrection = requestType === "ATTENDANCE_CORRECTION";
+  const isPending = status === "PENDING";
+  const panelClassName =
+    isAttendanceCorrection && isPending
+      ? "border-orange-200 bg-orange-50"
+      : "border-slate-200 bg-white";
+
+  return (
+    <section className={`rounded-3xl border p-5 shadow-sm ${panelClassName}`}>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-slate-900">承認操作</h2>
+          <p className="mt-1 text-sm font-bold text-slate-600">
+            現在は閲覧専用です。共通申請詳細からの承認・却下は次Phaseで有効化予定です。
+          </p>
+        </div>
+        <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${statusClassNames[status]}`}>
+          {statusLabels[status] ?? status}
+        </span>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <InfoItem label="現在のステータス" value={statusLabels[status] ?? status} />
+        <InfoItem label="申請種別" value={requestTypeLabels[requestType] ?? requestType} />
+        <InfoItem label="既存申請ID" value={legacyCorrectionRequestId || "-"} mono />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button disabled className="cursor-not-allowed rounded-xl bg-green-600 px-5 py-2.5 text-sm font-black text-white opacity-45">
+          承認
+        </button>
+        <button disabled className="cursor-not-allowed rounded-xl bg-red-600 px-5 py-2.5 text-sm font-black text-white opacity-45">
+          却下
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-bold leading-6 text-slate-700">
+        {!isAttendanceCorrection && <p>この申請種別の共通承認UIはまだ未対応です。</p>}
+        {isAttendanceCorrection && !isPending && <p>この申請は処理済みです。</p>}
+        {isAttendanceCorrection && isPending && (
+          <p>打刻修正申請の承認・却下は、既存の打刻修正申請画面から行ってください。</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function AttendanceRequestDetailPage({ params }: { params: { id: string } }) {
   const session = await requireAdmin();
   const request = await prisma.attendanceRequest.findFirst({
@@ -173,6 +229,8 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
               <InfoItem label="解決日時" value={formatDateTime(request.resolvedAt)} />
             </div>
           </section>
+
+          <ApprovalOperationPanel requestType={request.requestType} status={request.status} legacyCorrectionRequestId={legacyCorrectionRequestId} />
 
           <section className="rounded-3xl bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-black text-slate-900">承認ルート情報</h2>
