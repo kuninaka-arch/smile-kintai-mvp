@@ -67,6 +67,46 @@ export default async function ApprovalRoutesPage() {
     }))
   }));
 
+  const attendanceCorrectionCompanyDefaults = routes.filter(
+    (route) =>
+      route.requestType === "ATTENDANCE_CORRECTION" &&
+      route.isDefault &&
+      route.departmentId === null
+  );
+  const attendanceCorrectionRouteWarnings: string[] = [];
+
+  if (attendanceCorrectionCompanyDefaults.length === 0) {
+    attendanceCorrectionRouteWarnings.push(
+      "打刻修正申請の全社既定承認ルートが未設定です。現在、部署別ルートがない打刻修正申請は共通申請へ併記録されない場合があります。"
+    );
+  } else {
+    if (attendanceCorrectionCompanyDefaults.length > 1) {
+      attendanceCorrectionRouteWarnings.push(
+        "打刻修正申請の全社既定承認ルートが複数存在します。運用が不安定になる可能性があるため、1件に整理してください。"
+      );
+    }
+
+    for (const route of attendanceCorrectionCompanyDefaults) {
+      const routeLabel = attendanceCorrectionCompanyDefaults.length > 1 ? `${route.name}: ` : "";
+
+      if (!route.isActive) {
+        attendanceCorrectionRouteWarnings.push(
+          `${routeLabel}打刻修正申請の全社既定承認ルートが無効です。有効な承認ルートがない場合、共通申請への併記録がスキップされます。`
+        );
+      }
+
+      if (route.steps.length === 0) {
+        attendanceCorrectionRouteWarnings.push(
+          `${routeLabel}打刻修正申請の全社既定承認ルートに承認ステップがありません。承認者を設定するまで有効なルートとして扱われません。`
+        );
+      } else if (route.steps.some((step) => step.approvers.length === 0)) {
+        attendanceCorrectionRouteWarnings.push(
+          `${routeLabel}打刻修正申請の全社既定承認ルートに承認者未設定のステップがあります。承認者を設定してください。`
+        );
+      }
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
       <AdminSidebar active="approval-routes" />
@@ -79,6 +119,17 @@ export default async function ApprovalRoutesPage() {
         </header>
 
         <div className="mx-auto grid max-w-7xl gap-6 px-5 py-6">
+          {attendanceCorrectionRouteWarnings.length > 0 && (
+            <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm">
+              <h2 className="text-sm font-black">打刻修正申請の承認ルート設定を確認してください</h2>
+              <ul className="mt-3 space-y-2 text-sm font-bold leading-6">
+                {attendanceCorrectionRouteWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section className="rounded-3xl bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-black">新規承認ルート</h2>
             <ApprovalRouteForm departments={departments} users={users} roles={roles} />
