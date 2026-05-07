@@ -16,13 +16,7 @@ type UserOption = {
   qualifications: { id: string; qualificationId: string; name: string }[];
 };
 
-export function CareQualificationsManager({
-  qualifications,
-  users
-}: {
-  qualifications: Qualification[];
-  users: UserOption[];
-}) {
+export function CareQualificationsManager({ qualifications, users }: { qualifications: Qualification[]; users: UserOption[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [userId, setUserId] = useState(users[0]?.id ?? "");
@@ -180,10 +174,11 @@ export function CareQualificationsManager({
           <button disabled={saving || qualifications.length === 0} className="rounded-xl bg-blue-600 px-5 py-3 font-black text-white disabled:opacity-60">
             必要人数を保存
           </button>
+          {qualifications.length === 0 && <p className="text-sm font-bold text-slate-500">資格マスタを登録すると必要人数を設定できます。</p>}
         </form>
       </section>
 
-      {message && <p className="xl:col-span-2 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-700">{message}</p>}
+      {message && <p className="rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-700 xl:col-span-2">{message}</p>}
     </div>
   );
 }

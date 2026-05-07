@@ -11,9 +11,7 @@ type RuleInput = {
 
 export function CareStaffingRulesForm({ rules }: { rules: RuleInput[] }) {
   const router = useRouter();
-  const [values, setValues] = useState<Record<string, number>>(
-    Object.fromEntries(rules.map((rule) => [rule.category, rule.requiredCount]))
-  );
+  const [values, setValues] = useState<Record<string, number>>(Object.fromEntries(rules.map((rule) => [rule.category, rule.requiredCount])));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 

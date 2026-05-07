@@ -40,55 +40,44 @@ function buildMonthNav(ym: string, direction: -1 | 1) {
 export default async function CareNightShiftPage({ searchParams }: { searchParams: { ym?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
-  const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const ym = searchParams.ym && /^\d{4}-\d{2}$/.test(searchParams.ym)
+    ? searchParams.ym
+    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [year, month] = ym.split("-").map(Number);
 
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
-
-  if (!isCareCompany(company?.industryType)) {
-    redirect("/admin");
-  }
+  const company = await prisma.company.findUnique({ where: { id: session.user.companyId }, select: { industryType: true } }).catch(() => null);
+  if (!isCareCompany(company?.industryType)) redirect("/admin");
 
   const { start, end } = tokyoMonthRange(year, month);
   const [nightRule, nightShifts] = await Promise.all([
-    prisma.careStaffingRule.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        category: WorkPatternCategory.NIGHT,
-        floorId: null,
-        departmentId: null
-      },
-      orderBy: { updatedAt: "desc" }
-    }),
-    prisma.shift.findMany({
-      where: {
-        companyId: session.user.companyId,
-        workDate: { gte: start, lt: end },
-        workPattern: { category: WorkPatternCategory.NIGHT }
-      },
-      select: {
-        workDate: true,
-        startTime: true,
-        endTime: true,
-        patternCode: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            department: true
-          }
+    prisma.careStaffingRule
+      .findFirst({
+        where: {
+          companyId: session.user.companyId,
+          category: WorkPatternCategory.NIGHT,
+          floorId: null,
+          departmentId: null
         },
-        workPattern: {
-          select: {
-            name: true
-          }
-        }
-      },
-      orderBy: [{ workDate: "asc" }, { startTime: "asc" }]
-    })
+        orderBy: { updatedAt: "desc" }
+      })
+      .catch(() => null),
+    prisma.shift
+      .findMany({
+        where: {
+          companyId: session.user.companyId,
+          workDate: { gte: start, lt: end },
+          workPattern: { category: WorkPatternCategory.NIGHT }
+        },
+        select: {
+          workDate: true,
+          startTime: true,
+          patternCode: true,
+          user: { select: { id: true, name: true, department: true } },
+          workPattern: { select: { name: true } }
+        },
+        orderBy: [{ workDate: "asc" }, { startTime: "asc" }]
+      })
+      .catch(() => [])
   ]);
 
   const requiredNightCount = nightRule?.requiredCount ?? 0;
@@ -100,12 +89,7 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
   for (const shift of nightShifts) {
     const key = dateKey(shift.workDate);
     shiftsByDate.set(key, [...(shiftsByDate.get(key) ?? []), shift]);
-
-    const current = nightCountByUser.get(shift.user.id) ?? {
-      name: shift.user.name,
-      department: shift.user.department,
-      count: 0
-    };
+    const current = nightCountByUser.get(shift.user.id) ?? { name: shift.user.name, department: shift.user.department, count: 0 };
     current.count += 1;
     nightCountByUser.set(shift.user.id, current);
   }
@@ -116,8 +100,7 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
     const key = dateKey(date);
     const shifts = shiftsByDate.get(key) ?? [];
     const count = shifts.length;
-    const ok = count >= requiredNightCount;
-
+    const ok = !hasNightRule || count >= requiredNightCount;
     return {
       date: key,
       day,
@@ -128,7 +111,7 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
     };
   });
 
-  const shortageDays = rows.filter((row) => !row.ok).length;
+  const shortageDays = hasNightRule ? rows.filter((row) => !row.ok).length : 0;
   const totalNightShifts = nightShifts.length;
   const staffNightCounts = Array.from(nightCountByUser.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"));
 
@@ -142,21 +125,13 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
             <div>
               <p className="text-sm font-black text-emerald-700">介護施設モード</p>
               <h1 className="text-2xl font-black text-slate-900">夜勤体制表</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                月別に夜勤者、夜勤人数、必要夜勤人数、スタッフ別夜勤回数を確認します。
-              </p>
+              <p className="mt-1 text-sm text-slate-500">月別に夜勤者、夜勤人数、必要夜勤人数、スタッフ別夜勤回数を確認します。</p>
             </div>
             <div className="flex items-center gap-2">
-              <Link href={`/admin/care/night-shift?ym=${buildMonthNav(ym, -1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">
-                前月
-              </Link>
+              <Link href={`/admin/care/night-shift?ym=${buildMonthNav(ym, -1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">前月</Link>
               <div className="rounded-xl border bg-white px-4 py-2 font-black text-slate-900">{monthLabel(year, month)}</div>
-              <Link href={`/admin/care/night-shift?ym=${buildMonthNav(ym, 1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">
-                翌月
-              </Link>
-              <Link href="/admin/care/staffing-rules" className="rounded-xl bg-slate-900 px-4 py-2 font-black text-white">
-                夜勤基準設定
-              </Link>
+              <Link href={`/admin/care/night-shift?ym=${buildMonthNav(ym, 1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">翌月</Link>
+              <Link href="/admin/care/staffing-rules" className="rounded-xl bg-slate-900 px-4 py-2 font-black text-white">夜勤基準設定</Link>
             </div>
           </div>
         </header>
@@ -169,12 +144,16 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
             <SummaryCard label="不足日数" value={`${shortageDays}日`} danger={shortageDays > 0} />
           </div>
 
+          {!hasNightRule && (
+            <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5 text-sm font-bold text-orange-800">
+              夜勤の必要人数が未設定です。人員配置基準設定から夜勤の必要人数を登録してください。
+            </div>
+          )}
+
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b p-5">
               <h2 className="text-lg font-black text-slate-900">月別 夜勤体制</h2>
-              <p className="text-sm text-slate-500">
-                勤務パターンの区分が「夜勤」のシフトを集計しています。
-              </p>
+              <p className="text-sm text-slate-500">勤務パターンの区分が「夜勤」のシフトを集計しています。</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[980px] text-sm">
@@ -199,9 +178,7 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
                             {row.shifts.map((shift) => (
                               <span key={`${row.date}-${shift.user.id}-${shift.startTime}`} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-700">
                                 {shift.user.name}
-                                <span className="ml-1 text-indigo-500">
-                                  {shift.patternCode ?? shift.workPattern?.name ?? ""}
-                                </span>
+                                <span className="ml-1 text-indigo-500">{shift.patternCode ?? shift.workPattern?.name ?? ""}</span>
                               </span>
                             ))}
                           </div>
@@ -226,7 +203,7 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b p-5">
               <h2 className="text-lg font-black text-slate-900">スタッフ別 夜勤回数</h2>
-              <p className="text-sm text-slate-500">対象月に夜勤シフトへ入っているスタッフを回数順に表示します。</p>
+              <p className="text-sm text-slate-500">対象月に夜勤シフトが入っているスタッフを回数順に表示します。</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
@@ -247,19 +224,13 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
                   ))}
                   {staffNightCounts.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="p-8 text-center font-bold text-slate-500">
-                        対象月の夜勤シフトはまだありません。
-                      </td>
+                      <td colSpan={3} className="p-8 text-center font-bold text-slate-500">対象月の夜勤シフトはまだありません。</td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </section>
-
-          <p className="text-sm leading-6 text-slate-500">
-            今回は月内の夜勤シフトを日付ごとに集計しています。月末跨ぎの明け補正、深夜労働時間、夜勤手当は後続フェーズで扱います。
-          </p>
         </div>
       </section>
     </main>

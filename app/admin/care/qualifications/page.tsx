@@ -48,57 +48,47 @@ function buildMonthNav(ym: string, direction: -1 | 1) {
 export default async function CareQualificationsPage({ searchParams }: { searchParams: { ym?: string } }) {
   const session = await requireAdmin();
   const now = new Date();
-  const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const ym = searchParams.ym && /^\d{4}-\d{2}$/.test(searchParams.ym)
+    ? searchParams.ym
+    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [year, month] = ym.split("-").map(Number);
 
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
-
-  if (!isCareCompany(company?.industryType)) {
-    redirect("/admin");
-  }
+  const company = await prisma.company.findUnique({ where: { id: session.user.companyId }, select: { industryType: true } }).catch(() => null);
+  if (!isCareCompany(company?.industryType)) redirect("/admin");
 
   const { start, end } = tokyoMonthRange(year, month);
   const [qualifications, users, shifts] = await Promise.all([
-    prisma.qualificationMaster.findMany({
-      where: { companyId: session.user.companyId },
-      include: { careQualificationRules: true },
-      orderBy: [{ name: "asc" }, { createdAt: "asc" }]
-    }),
-    prisma.user.findMany({
-      where: { companyId: session.user.companyId },
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        displayOrder: true,
-        createdAt: true,
-        qualifications: {
-          include: { qualification: true },
-          orderBy: { createdAt: "asc" }
-        }
-      },
-      orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
-    }),
-    prisma.shift.findMany({
-      where: {
-        companyId: session.user.companyId,
-        workDate: { gte: start, lt: end }
-      },
-      select: {
-        workDate: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            qualifications: { include: { qualification: true } }
-          }
+    prisma.qualificationMaster
+      .findMany({
+        where: { companyId: session.user.companyId },
+        include: { careQualificationRules: true },
+        orderBy: [{ name: "asc" }, { createdAt: "asc" }]
+      })
+      .catch(() => []),
+    prisma.user
+      .findMany({
+        where: { companyId: session.user.companyId },
+        select: {
+          id: true,
+          name: true,
+          department: true,
+          displayOrder: true,
+          createdAt: true,
+          qualifications: { include: { qualification: true }, orderBy: { createdAt: "asc" } }
         },
-        workPattern: { select: { category: true } }
-      }
-    })
+        orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
+      })
+      .catch(() => []),
+    prisma.shift
+      .findMany({
+        where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } },
+        select: {
+          workDate: true,
+          user: { select: { id: true, name: true, qualifications: { include: { qualification: true } } } },
+          workPattern: { select: { category: true } }
+        }
+      })
+      .catch(() => [])
   ]);
 
   const qualificationRows = qualifications.map((qualification) => ({
@@ -122,16 +112,13 @@ export default async function CareQualificationsPage({ searchParams }: { searchP
   for (const shift of shifts) {
     const category = shift.workPattern?.category;
     if (!category || !workCategories.has(category)) continue;
-
     const key = dateKey(shift.workDate);
     const perDate = assignedByDateAndQualification.get(key) ?? new Map<string, Map<string, string>>();
-
     for (const userQualification of shift.user.qualifications) {
       const staffByQualification = perDate.get(userQualification.qualificationId) ?? new Map<string, string>();
       staffByQualification.set(shift.user.id, shift.user.name);
       perDate.set(userQualification.qualificationId, staffByQualification);
     }
-
     assignedByDateAndQualification.set(key, perDate);
   }
 
@@ -152,7 +139,6 @@ export default async function CareQualificationsPage({ searchParams }: { searchP
         ok: staff.length >= qualification.requiredCount
       };
     });
-
     return {
       date: key,
       day,
@@ -174,18 +160,12 @@ export default async function CareQualificationsPage({ searchParams }: { searchP
             <div>
               <p className="text-sm font-black text-emerald-700">介護施設モード</p>
               <h1 className="text-2xl font-black text-slate-900">資格者配置表</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                資格マスタ・スタッフ保有資格・資格別必要人数を管理し、月別に配置状況を確認します。
-              </p>
+              <p className="mt-1 text-sm text-slate-500">資格マスタ、スタッフ保有資格、資格別必要人数を管理し、月別の配置状況を確認します。</p>
             </div>
             <div className="flex items-center gap-2">
-              <Link href={`/admin/care/qualifications?ym=${buildMonthNav(ym, -1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">
-                前月
-              </Link>
+              <Link href={`/admin/care/qualifications?ym=${buildMonthNav(ym, -1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">前月</Link>
               <div className="rounded-xl border bg-white px-4 py-2 font-black text-slate-900">{monthLabel(year, month)}</div>
-              <Link href={`/admin/care/qualifications?ym=${buildMonthNav(ym, 1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">
-                翌月
-              </Link>
+              <Link href={`/admin/care/qualifications?ym=${buildMonthNav(ym, 1)}`} className="rounded-xl border bg-white px-3 py-2 font-black text-slate-700">翌月</Link>
             </div>
           </div>
         </header>
@@ -202,9 +182,7 @@ export default async function CareQualificationsPage({ searchParams }: { searchP
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b p-5">
               <h2 className="text-lg font-black text-slate-900">月別 資格者配置状況</h2>
-              <p className="text-sm text-slate-500">
-                早番・日勤・遅番・夜勤のシフトに入っているスタッフの保有資格を集計します。
-              </p>
+              <p className="text-sm text-slate-500">早番・日勤・遅番・夜勤のシフトに入っているスタッフの保有資格を集計します。</p>
             </div>
             <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[1180px] text-sm">
@@ -219,31 +197,30 @@ export default async function CareQualificationsPage({ searchParams }: { searchP
                   </tr>
                 </thead>
                 <tbody>
-                  {staffingRows.flatMap((row) =>
-                    row.cells.map((cell, cellIndex) => (
-                      <tr key={`${row.date}-${cell.qualificationId}`} className={!cell.ok ? "bg-red-50" : "bg-white"}>
-                        {cellIndex === 0 && (
-                          <td rowSpan={row.cells.length} className="sticky left-0 z-10 border-t bg-white p-4 font-black shadow-[1px_0_0_#e2e8f0]">
-                            {row.day}日（{row.weekday}）
+                  {qualificationRows.length > 0 &&
+                    staffingRows.flatMap((row) =>
+                      row.cells.map((cell, cellIndex) => (
+                        <tr key={`${row.date}-${cell.qualificationId}`} className={!cell.ok ? "bg-red-50" : "bg-white"}>
+                          {cellIndex === 0 && (
+                            <td rowSpan={row.cells.length} className="sticky left-0 z-10 border-t bg-white p-4 font-black shadow-[1px_0_0_#e2e8f0]">
+                              {row.day}日（{row.weekday}）
+                            </td>
+                          )}
+                          <td className="border-t p-4 font-black text-slate-900">{cell.qualificationName}</td>
+                          <td className="border-t p-4 font-bold">{cell.requiredCount}名</td>
+                          <td className="border-t p-4 font-bold">{cell.assignedCount}名</td>
+                          <td className="border-t p-4 text-slate-600">{cell.staff.length > 0 ? cell.staff.join("、") : "-"}</td>
+                          <td className="border-t p-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-black ${cell.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                              {cell.ok ? "OK" : "不足"}
+                            </span>
                           </td>
-                        )}
-                        <td className="border-t p-4 font-black text-slate-900">{cell.qualificationName}</td>
-                        <td className="border-t p-4 font-bold">{cell.requiredCount}名</td>
-                        <td className="border-t p-4 font-bold">{cell.assignedCount}名</td>
-                        <td className="border-t p-4 text-slate-600">{cell.staff.length > 0 ? cell.staff.join("、") : "-"}</td>
-                        <td className="border-t p-4">
-                          <span className={`rounded-full px-3 py-1 text-xs font-black ${cell.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                            {cell.ok ? "OK" : "不足"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                        </tr>
+                      ))
+                    )}
                   {qualificationRows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center font-bold text-slate-500">
-                        資格マスタを登録すると、配置状況を確認できます。
-                      </td>
+                      <td colSpan={6} className="p-8 text-center font-bold text-slate-500">資格マスタを登録すると、配置状況を確認できます。</td>
                     </tr>
                   )}
                 </tbody>

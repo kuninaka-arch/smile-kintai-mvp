@@ -29,28 +29,17 @@ function fileTypeLabel(fileType: string) {
 
 export default async function CareReportExportsPage() {
   const session = await requireAdmin();
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
+  const company = await prisma.company.findUnique({ where: { id: session.user.companyId }, select: { industryType: true } }).catch(() => null);
+  if (!isCareCompany(company?.industryType)) redirect("/admin");
 
-  if (!isCareCompany(company?.industryType)) {
-    redirect("/admin");
-  }
-
-  const histories = await prisma.reportExportHistory.findMany({
-    where: { companyId: session.user.companyId },
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true
-        }
-      }
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200
-  });
+  const histories = await prisma.reportExportHistory
+    .findMany({
+      where: { companyId: session.user.companyId },
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 200
+    })
+    .catch(() => []);
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -62,9 +51,7 @@ export default async function CareReportExportsPage() {
             <div>
               <p className="text-sm font-black text-emerald-700">介護施設モード</p>
               <h1 className="text-2xl font-black text-slate-900">帳票出力履歴</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                加算資料などの帳票を出力した履歴を新しい順で確認します。
-              </p>
+              <p className="mt-1 text-sm text-slate-500">加算資料などの帳票を出力した履歴を新しい順で確認します。</p>
             </div>
             <Link href="/admin/care/addition-reports" className="rounded-xl border bg-white px-4 py-2 font-black text-slate-700">
               加算資料へ戻る
@@ -101,11 +88,7 @@ export default async function CareReportExportsPage() {
                       <td className="p-4 font-bold text-slate-700">{history.targetMonth}</td>
                       <td className="p-4 font-bold text-slate-700">{reportTypeLabel(history.reportType)}</td>
                       <td className="p-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${
-                            history.fileType === "PDF" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${history.fileType === "PDF" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
                           {fileTypeLabel(history.fileType)}
                         </span>
                       </td>
@@ -114,9 +97,7 @@ export default async function CareReportExportsPage() {
 
                   {histories.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center font-bold text-slate-500">
-                        まだ帳票出力履歴はありません。
-                      </td>
+                      <td colSpan={5} className="p-8 text-center font-bold text-slate-500">まだ帳票出力履歴はありません。</td>
                     </tr>
                   )}
                 </tbody>

@@ -8,14 +8,14 @@ import { isCareCompany } from "@/lib/industry";
 import { prisma } from "@/lib/prisma";
 
 const dashboardLinks = [
-  { href: "/admin/shifts", label: "シフト管理", description: "月間シフトを確認・編集" },
-  { href: "/admin/monthly", label: "勤怠管理", description: "月次勤怠集計を確認" },
-  { href: "/admin/leaves", label: "休暇・希望休", description: "申請の承認状況を確認" },
-  { href: "/admin/care/staffing", label: "人員配置表", description: "日別の配置不足を確認" },
-  { href: "/admin/care/full-time-equivalent", label: "常勤換算表", description: "職種別の常勤換算を確認" },
-  { href: "/admin/care/qualifications", label: "資格者配置表", description: "資格者の配置状況を確認" },
-  { href: "/admin/care/night-shift", label: "夜勤体制表", description: "夜勤者と不足日を確認" },
-  { href: "/admin/care/addition-reports", label: "加算資料", description: "加算資料サマリーを確認" }
+  { href: "/admin/shifts", label: "シフト管理", description: "月間シフトを確認・編集します。" },
+  { href: "/admin/monthly", label: "勤怠管理", description: "月次勤怠集計を確認します。" },
+  { href: "/admin/leaves", label: "休暇・希望休", description: "休暇申請と承認状況を確認します。" },
+  { href: "/admin/care/staffing", label: "人員配置表", description: "日別の配置不足を確認します。" },
+  { href: "/admin/care/full-time-equivalent", label: "常勤換算表", description: "職種別の常勤換算を確認します。" },
+  { href: "/admin/care/qualifications", label: "資格者配置表", description: "資格者の配置状況を確認します。" },
+  { href: "/admin/care/night-shift", label: "夜勤体制表", description: "夜勤者と不足日を確認します。" },
+  { href: "/admin/care/addition-reports", label: "加算資料", description: "加算資料サマリーを確認します。" }
 ];
 
 function todayTokyoRange() {
@@ -43,54 +43,52 @@ function shortageClassName(count: number) {
 
 export default async function CareDashboardPage() {
   const session = await requireAdmin();
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
+  const company = await prisma.company
+    .findUnique({
+      where: { id: session.user.companyId },
+      select: { industryType: true }
+    })
+    .catch(() => null);
 
-  if (!isCareCompany(company?.industryType)) {
-    redirect("/admin");
-  }
+  if (!isCareCompany(company?.industryType)) redirect("/admin");
 
   const { key: todayKey, start: todayStart, end: todayEnd } = todayTokyoRange();
   const { ym } = parseCareAdditionYm(todayKey.slice(0, 7));
 
   const [todayShifts, pendingLeaveCount, summary] = await Promise.all([
-    prisma.shift.findMany({
-      where: {
-        companyId: session.user.companyId,
-        workDate: { gte: todayStart, lt: todayEnd }
-      },
-      select: {
-        userId: true,
-        workPattern: {
-          select: {
-            category: true,
-            countsAsWork: true,
-            isHoliday: true
+    prisma.shift
+      .findMany({
+        where: {
+          companyId: session.user.companyId,
+          workDate: { gte: todayStart, lt: todayEnd }
+        },
+        select: {
+          userId: true,
+          workPattern: {
+            select: {
+              category: true,
+              countsAsWork: true,
+              isHoliday: true
+            }
           }
         }
-      }
-    }),
-    prisma.leaveRequest.count({
-      where: {
-        companyId: session.user.companyId,
-        status: "PENDING"
-      }
-    }),
+      })
+      .catch(() => []),
+    prisma.leaveRequest
+      .count({
+        where: {
+          companyId: session.user.companyId,
+          status: "PENDING"
+        }
+      })
+      .catch(() => 0),
     buildCareAdditionReportSummary(session.user.companyId, ym)
   ]);
 
   const workingUserIds = new Set(
-    todayShifts
-      .filter((shift) => shift.workPattern?.countsAsWork && !shift.workPattern.isHoliday)
-      .map((shift) => shift.userId)
+    todayShifts.filter((shift) => shift.workPattern?.countsAsWork && !shift.workPattern.isHoliday).map((shift) => shift.userId)
   );
-  const nightUserIds = new Set(
-    todayShifts
-      .filter((shift) => shift.workPattern?.category === WorkPatternCategory.NIGHT)
-      .map((shift) => shift.userId)
-  );
+  const nightUserIds = new Set(todayShifts.filter((shift) => shift.workPattern?.category === WorkPatternCategory.NIGHT).map((shift) => shift.userId));
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -102,13 +100,9 @@ export default async function CareDashboardPage() {
             <div>
               <p className="text-sm font-black text-emerald-700">介護施設モード</p>
               <h1 className="text-2xl font-black text-slate-900">介護ダッシュボード</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                本日の勤務状況と加算資料の確認ポイントをまとめて表示します。
-              </p>
+              <p className="mt-1 text-sm text-slate-500">本日の勤務状況と加算資料の確認ポイントをまとめて表示します。</p>
             </div>
-            <div className="rounded-xl border bg-white px-4 py-2 text-sm font-black text-slate-700">
-              本日 {todayKey}
-            </div>
+            <div className="rounded-xl border bg-white px-4 py-2 text-sm font-black text-slate-700">本日 {todayKey}</div>
           </div>
         </header>
 
