@@ -273,6 +273,12 @@ export default async function AttendanceRequestsPage({
                           {legacyCorrectionRequestId || "-"}
                         </td>
                         <td className="p-4">
+                          <Link
+                            href={`/admin/attendance-requests/${request.id}`}
+                            className="mb-2 inline-flex rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700"
+                          >
+                            詳細ページ
+                          </Link>
                           <details className="group">
                             <summary className="cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-center text-xs font-black text-white">
                               詳細
