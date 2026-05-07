@@ -124,6 +124,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   });
   if (!request) return apiError("打刻修正申請が見つかりません。", 404);
 
+  if (request.status !== "PENDING") return apiError("この申請はすでに処理済みです。", 409);
+
   const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "打刻修正申請");
   if (lockError) return lockError;
 
