@@ -88,7 +88,7 @@ export function assessCareAdditionStatus(shortageCount: number): AdditionStatus 
 export function careAdditionJudgementComment(status: AdditionStatus) {
   if (status === "達成") return "設定された基準値に対する不足はありません。";
   if (status === "注意") return "一部に不足があります。詳細画面で不足日と不足区分を確認してください。";
-  return "不足が複数あります。人員配置、資格者配置、夜勤体制の見直しを推奨します。";
+  return "不足が複数あります。人員配置、資格者配置、夜勤体制の見直しをおすすめします。";
 }
 
 export function buildCareAdditionMonthNav(ym: string, direction: -1 | 1) {
@@ -99,7 +99,8 @@ export function buildCareAdditionMonthNav(ym: string, direction: -1 | 1) {
 
 export function parseCareAdditionYm(ym: string | null | undefined) {
   const now = new Date();
-  const value = ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const value = ym && /^\d{4}-\d{2}$/.test(ym) ? ym : fallback;
   const [year, month] = value.split("-").map(Number);
   return {
     ym: value,
@@ -121,7 +122,7 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
         floorId: null,
         departmentId: null
       }
-    }),
+    }).catch(() => []),
     prisma.shift.findMany({
       where: { companyId, workDate: { gte: start, lt: end } },
       select: {
@@ -135,17 +136,16 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
         },
         workPattern: { select: { category: true } }
       }
-    }),
+    }).catch(() => []),
     prisma.careFullTimeEquivalentRule.findFirst({
       where: { companyId },
       orderBy: { updatedAt: "desc" }
-    }),
+    }).catch(() => null),
     prisma.user.findMany({
       where: { companyId },
       select: {
         id: true,
         jobType: true,
-        isFullTime: true,
         shifts: {
           where: { workDate: { gte: start, lt: end } },
           select: {
@@ -157,21 +157,17 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
         }
       },
       orderBy: [{ jobType: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
-    }),
+    }).catch(() => []),
     prisma.qualificationMaster.findMany({
       where: { companyId },
       include: { careQualificationRules: true },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }]
-    })
+    }).catch(() => [])
   ]);
 
   const requiredByCategory = new Map<WorkPatternCategory, number>();
-  for (const item of careAdditionStaffingCategories) {
-    requiredByCategory.set(item.category, 0);
-  }
-  for (const rule of staffingRules) {
-    requiredByCategory.set(rule.category, rule.requiredCount);
-  }
+  for (const item of careAdditionStaffingCategories) requiredByCategory.set(item.category, 0);
+  for (const rule of staffingRules) requiredByCategory.set(rule.category, rule.requiredCount);
 
   const assignedByDateAndCategory = new Map<string, Map<WorkPatternCategory, number>>();
   const nightShiftsByDate = new Map<string, typeof shifts>();
@@ -219,10 +215,7 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
         .map((item) => {
           const required = requiredByCategory.get(item.category) ?? 0;
           const assigned = assignedByDateAndCategory.get(date.key)?.get(item.category) ?? 0;
-          return {
-            label: item.label,
-            missing: Math.max(0, required - assigned)
-          };
+          return { label: item.label, missing: Math.max(0, required - assigned) };
         })
         .filter((item) => item.missing > 0);
 
@@ -247,10 +240,7 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
       const shortages = qualificationRows
         .map((qualification) => {
           const assigned = perQualification.get(qualification.id)?.size ?? 0;
-          return {
-            name: qualification.name,
-            missing: Math.max(0, qualification.requiredCount - assigned)
-          };
+          return { name: qualification.name, missing: Math.max(0, qualification.requiredCount - assigned) };
         })
         .filter((item) => item.missing > 0);
 
@@ -264,15 +254,15 @@ export async function buildCareAdditionReportSummary(companyId: string, ymValue?
       qualificationShortageCounts.set(shortage.name, (qualificationShortageCounts.get(shortage.name) ?? 0) + 1);
     }
   }
+
   const qualificationShortages = Array.from(qualificationShortageCounts.entries())
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"));
 
   const requiredNightCount = requiredByCategory.get(WorkPatternCategory.NIGHT) ?? 0;
-  const nightShortageDays = dates.filter((date) => {
-    const assigned = nightShiftsByDate.get(date.key)?.length ?? 0;
-    return assigned < requiredNightCount;
-  }).length;
+  const nightShortageDays = requiredNightCount > 0
+    ? dates.filter((date) => (nightShiftsByDate.get(date.key)?.length ?? 0) < requiredNightCount).length
+    : 0;
 
   const nightStaffCounts = Array.from(nightCountByUser.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"));
 

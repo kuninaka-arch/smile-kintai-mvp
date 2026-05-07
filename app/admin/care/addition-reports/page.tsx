@@ -27,21 +27,20 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
   const session = await requireAdmin();
   const { ym } = parseCareAdditionYm(searchParams.ym);
 
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { industryType: true }
-  });
+  const company = await prisma.company
+    .findUnique({
+      where: { id: session.user.companyId },
+      select: { industryType: true }
+    })
+    .catch(() => null);
 
-  if (!isCareCompany(company?.industryType)) {
-    redirect("/admin");
-  }
+  if (!isCareCompany(company?.industryType)) redirect("/admin");
 
   const summary = await buildCareAdditionReportSummary(session.user.companyId, ym);
 
   return (
     <main className="min-h-screen bg-slate-100">
       <AdminSidebar active="care-addition-reports" />
-
       <section className="lg:ml-64">
         <header className="sticky top-0 z-10 border-b bg-white/90 px-5 py-4 backdrop-blur">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
@@ -81,8 +80,8 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
             <SummaryCard label="夜勤配置不足日数" value={`${summary.nightShortageDays}日`} valueClassName={shortageTextClassName(summary.nightShortageDays)} />
             <SummaryCard label="常勤換算 合計" value={summary.totalFte.toFixed(2)} />
             <div className="rounded-3xl bg-white p-5 shadow-sm">
-              <p className="text-sm font-bold text-slate-500">出力機能</p>
-              <p className="mt-2 text-base font-black text-emerald-700">Excel / PDF 出力に対応</p>
+              <p className="text-sm font-bold text-slate-500">帳票出力</p>
+              <p className="mt-2 text-base font-black text-emerald-700">Excel / PDF 対応</p>
             </div>
           </section>
 
@@ -115,14 +114,8 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
 
             <DashboardPanel title="夜勤体制サマリー" href={`/admin/care/night-shift?ym=${ym}`} linkLabel="夜勤体制表を開く">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-bold text-slate-500">夜勤不足日数</p>
-                  <p className={`mt-1 text-3xl font-black ${shortageTextClassName(summary.nightShortageDays)}`}>{summary.nightShortageDays}日</p>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-500">必要夜勤人数</p>
-                  <p className="mt-1 text-3xl font-black text-slate-900">{summary.requiredNightCount}名</p>
-                </div>
+                <SummaryInline label="夜勤不足日数" value={`${summary.nightShortageDays}日`} valueClassName={shortageTextClassName(summary.nightShortageDays)} />
+                <SummaryInline label="必要夜勤人数" value={summary.requiredNightCount > 0 ? `${summary.requiredNightCount}名` : "未設定"} />
               </div>
               <SimpleList
                 emptyText="夜勤回数の登録はまだありません。"
@@ -136,17 +129,11 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
 
             <DashboardPanel title="常勤換算サマリー" href={`/admin/care/full-time-equivalent?ym=${ym}`} linkLabel="常勤換算表を開く">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-bold text-slate-500">常勤換算 合計</p>
-                  <p className="mt-1 text-3xl font-black text-emerald-700">{summary.totalFte.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-500">基準月間時間</p>
-                  <p className="mt-1 text-3xl font-black text-slate-900">{minutesToHHMM(summary.standardMonthlyMinutes)}</p>
-                </div>
+                <SummaryInline label="常勤換算 合計" value={summary.totalFte.toFixed(2)} valueClassName="text-emerald-700" />
+                <SummaryInline label="基準月間時間" value={minutesToHHMM(summary.standardMonthlyMinutes)} />
               </div>
               <SimpleList
-                emptyText="常勤換算の対象スタッフがありません。"
+                emptyText="常勤換算の対象スタッフがいません。"
                 items={summary.fteRows.slice(0, 5).map((row) => ({
                   key: row.jobType,
                   title: row.jobType,
@@ -157,10 +144,9 @@ export default async function CareAdditionReportsPage({ searchParams }: { search
           </section>
 
           <section className="rounded-3xl border border-orange-200 bg-orange-50 p-5 text-sm leading-6 text-orange-800">
-            <h2 className="font-black">今回の判定について</h2>
+            <h2 className="font-black">判定について</h2>
             <p className="mt-2">
-              現時点では法令・加算要件の厳密判定ではなく、システムに設定した必要人数や資格者人数との比較だけで判定しています。
-              不足が0件なら「達成」、1〜3件なら「注意」、4件以上なら「不足」として表示します。
+              この画面は、システムに設定された基準値との比較結果です。法令・加算要件の最終判断は施設側でご確認ください。
             </p>
           </section>
         </div>
@@ -192,17 +178,16 @@ function SummaryCard({
   );
 }
 
-function DashboardPanel({
-  title,
-  href,
-  linkLabel,
-  children
-}: {
-  title: string;
-  href: string;
-  linkLabel: string;
-  children: ReactNode;
-}) {
+function SummaryInline({ label, value, valueClassName = "text-slate-900" }: { label: string; value: string; valueClassName?: string }) {
+  return (
+    <div>
+      <p className="text-sm font-bold text-slate-500">{label}</p>
+      <p className={`mt-1 text-3xl font-black ${valueClassName}`}>{value}</p>
+    </div>
+  );
+}
+
+function DashboardPanel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: ReactNode }) {
   return (
     <section className="rounded-3xl bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
@@ -216,17 +201,8 @@ function DashboardPanel({
   );
 }
 
-function SimpleList({
-  items,
-  emptyText
-}: {
-  items: { key: string; title: string; detail: string }[];
-  emptyText: string;
-}) {
-  if (items.length === 0) {
-    return <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-500">{emptyText}</p>;
-  }
-
+function SimpleList({ items, emptyText }: { items: { key: string; title: string; detail: string }[]; emptyText: string }) {
+  if (items.length === 0) return <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-500">{emptyText}</p>;
   return (
     <div className="space-y-2">
       {items.map((item) => (

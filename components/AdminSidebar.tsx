@@ -214,10 +214,12 @@ function MenuIcon({ name }: { name: IconName }) {
 export async function AdminSidebar({ active }: { active: string }) {
   const session = await getServerSession(authOptions);
   const company = session?.user.companyId
-    ? await prisma.company.findUnique({
-        where: { id: session.user.companyId },
-        select: { industryType: true }
-      })
+    ? await prisma.company
+        .findUnique({
+          where: { id: session.user.companyId },
+          select: { industryType: true }
+        })
+        .catch(() => null)
     : null;
   const showCareMenu = isCareCompany(company?.industryType);
 

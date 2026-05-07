@@ -34,9 +34,7 @@ function sheetXml(rows: (string | number)[][]) {
       const cells = row
         .map((value, columnIndex) => {
           const ref = `${columnName(columnIndex)}${rowIndex + 1}`;
-          if (typeof value === "number") {
-            return `<c r="${ref}"><v>${value}</v></c>`;
-          }
+          if (typeof value === "number") return `<c r="${ref}"><v>${value}</v></c>`;
           return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`;
         })
         .join("");
@@ -98,9 +96,7 @@ const crcTable = (() => {
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i += 1) {
     let c = i;
-    for (let k = 0; k < 8; k += 1) {
-      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    }
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     table[i] = c >>> 0;
   }
   return table;
@@ -196,28 +192,19 @@ function buildSheets(summary: CareAdditionReportSummary): Sheet[] {
   return [
     {
       name: "サマリー",
-      rows: [["スマイル勤怠 介護加算資料サマリー"], ...careAdditionSummaryRows(summary)]
+      rows: [["勤怠管理システム 介護加算資料サマリー"], ...careAdditionSummaryRows(summary)]
     },
     {
       name: "人員配置",
-      rows: [
-        ["日付", "内容"],
-        ...summary.staffingShortages.map((row) => [`${row.day}日（${row.weekday}）`, row.detail])
-      ]
+      rows: [["日付", "内容"], ...summary.staffingShortages.map((row) => [`${row.day}日（${row.weekday}）`, row.detail])]
     },
     {
       name: "資格者配置",
-      rows: [
-        ["資格", "不足日数"],
-        ...summary.qualificationShortages.map((row) => [row.name, row.count])
-      ]
+      rows: [["資格", "不足日数"], ...summary.qualificationShortages.map((row) => [row.name, row.count])]
     },
     {
       name: "夜勤体制",
-      rows: [
-        ["スタッフ", "夜勤回数"],
-        ...summary.nightStaffCounts.map((row) => [row.name, row.count])
-      ]
+      rows: [["スタッフ", "夜勤回数"], ...summary.nightStaffCounts.map((row) => [row.name, row.count])]
     },
     {
       name: "常勤換算",
@@ -251,7 +238,7 @@ function pdfEscape(value: string) {
 
 export function createCareAdditionPdf(summary: CareAdditionReportSummary) {
   const lines = [
-    "Smile Kintai Care Addition Report Summary",
+    "Care Addition Report Summary",
     `Target Month: ${summary.monthLabel}`,
     `Status: ${summary.status}`,
     `Staffing shortage days: ${summary.staffingShortageDays}`,
@@ -266,7 +253,7 @@ export function createCareAdditionPdf(summary: CareAdditionReportSummary) {
     "BT",
     "/F1 18 Tf",
     "50 790 Td",
-    `(${pdfEscape("スマイル勤怠 介護加算資料サマリー")}) Tj`,
+    `(${pdfEscape("勤怠管理システム 介護加算資料サマリー")}) Tj`,
     "/F1 11 Tf",
     ...lines.map((line, index) => `${index === 0 ? "0 -28 Td" : "0 -18 Td"} (${pdfEscape(line)}) Tj`),
     "ET"
