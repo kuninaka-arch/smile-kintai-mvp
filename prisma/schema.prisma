@@ -38,105 +38,210 @@ enum AttendanceType {
   BREAK_END
 }
 
+enum RequestType {
+  ATTENDANCE_CORRECTION
+  OVERTIME
+  HOLIDAY_WORK
+  NIGHT_WORK
+  PAID_LEAVE
+  SUBSTITUTE_LEAVE
+  MATERNITY_LEAVE
+  CHILDCARE_LEAVE
+  SHORT_TIME_WORK
+}
+
+enum RequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELED
+}
+
+enum ApprovalAction {
+  CREATE
+  SUBMIT
+  APPROVE
+  REJECT
+  RETURN
+  CANCEL
+  UPDATE
+}
+
+enum ApprovalRequirement {
+  ANY_ONE
+  ALL_REQUIRED
+}
+
+enum ApprovalApproverType {
+  USER
+  ROLE
+  DEPARTMENT_MANAGER
+  COMPANY_ADMIN
+}
+
+enum DepartmentScope {
+  SELF
+  OWN_DEPARTMENT
+  SELECTED_DEPARTMENTS
+  ALL_COMPANY
+}
+
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  industryType IndustryType @default(general)
-  closingDay Int     @default(31)
-  users     User[]
-  departments Department[]
-  employmentTypes EmploymentType[]
-  positionMasters PositionMaster[]
-  roleMasters RoleMaster[]
-  leaveTypes LeaveTypeMaster[]
-  workPatterns WorkPattern[]
-  shifts    Shift[]
-  shiftEvents ShiftEvent[]
-  leaveRequests LeaveRequest[]
-  periodLocks AttendancePeriodLock[]
-  careStaffingRules CareStaffingRule[]
+  id                          String                       @id @default(cuid())
+  name                        String
+  code                        String                       @unique
+  industryType                IndustryType                 @default(general)
+  closingDay                  Int                          @default(31)
+  users                       User[]
+  departments                 Department[]
+  employmentTypes             EmploymentType[]
+  positionMasters             PositionMaster[]
+  roleMasters                 RoleMaster[]
+  leaveTypes                  LeaveTypeMaster[]
+  workPatterns                WorkPattern[]
+  shifts                      Shift[]
+  shiftEvents                 ShiftEvent[]
+  leaveRequests               LeaveRequest[]
+  periodLocks                 AttendancePeriodLock[]
+  careStaffingRules           CareStaffingRule[]
   careFullTimeEquivalentRules CareFullTimeEquivalentRule[]
-  qualificationMasters QualificationMaster[]
-  careQualificationRules CareQualificationRule[]
-  auditLogs AuditLog[]
-  reportExportHistories ReportExportHistory[]
-  aiHelpFaqs AiHelpFaq[]
-  aiHelpUnansweredQuestions AiHelpUnansweredQuestion[]
-  aiHelpConversations AiHelpConversation[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  qualificationMasters        QualificationMaster[]
+  careQualificationRules      CareQualificationRule[]
+  auditLogs                   AuditLog[]
+  reportExportHistories       ReportExportHistory[]
+  aiHelpFaqs                  AiHelpFaq[]
+  aiHelpUnansweredQuestions   AiHelpUnansweredQuestion[]
+  aiHelpConversations         AiHelpConversation[]
+  attendanceRequests          AttendanceRequest[]
+  approvalRoutes              ApprovalRoute[]
+  approvalDelegates           ApprovalDelegate[]
+  rolePermissions             RolePermission[]
+  userDepartmentPermissions   UserDepartmentPermission[]
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
 }
 
 model AttendancePeriodLock {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  periodKey String
-  periodStart DateTime
-  periodEnd DateTime
-  closingDay Int
-  locked    Boolean  @default(false)
-  lockedAt  DateTime?
-  lockedByUserId String?
-  unlockedAt DateTime?
+  id               String    @id @default(cuid())
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id])
+  periodKey        String
+  periodStart      DateTime
+  periodEnd        DateTime
+  closingDay       Int
+  locked           Boolean   @default(false)
+  lockedAt         DateTime?
+  lockedByUserId   String?
+  unlockedAt       DateTime?
   unlockedByUserId String?
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  note             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([companyId, periodKey])
   @@index([companyId, periodStart, periodEnd])
 }
 
 model User {
-  id            String          @id @default(cuid())
-  companyId     String
-  company       Company         @relation(fields: [companyId], references: [id])
-  name          String
-  email         String          @unique
-  passwordHash  String
-  role          Role            @default(EMPLOYEE)
-  department    String?
-  departmentId   String?
-  departmentMaster Department? @relation(fields: [departmentId], references: [id])
-  positionMasterId String?
-  positionMaster PositionMaster? @relation(fields: [positionMasterId], references: [id])
-  employmentTypeId String?
-  employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
-  roleMasterId  String?
-  roleMaster    RoleMaster? @relation(fields: [roleMasterId], references: [id])
-  jobType       String?
-  isFullTime    Boolean         @default(false)
-  monthlyScheduledMinutes Int?
-  displayOrder  Int             @default(0)
-  attendanceLogs AttendanceLog[]
-  shifts        Shift[]
-  paidLeaves    PaidLeave[]
-  correctionRequests AttendanceCorrectionRequest[]
-  leaveRequests LeaveRequest[]
-  qualifications UserQualification[]
-  reportExportHistories ReportExportHistory[]
+  id                        String                        @id @default(cuid())
+  companyId                 String
+  company                   Company                       @relation(fields: [companyId], references: [id])
+  name                      String
+  email                     String                        @unique
+  passwordHash              String
+  role                      Role                          @default(EMPLOYEE)
+  department                String?
+  departmentId              String?
+  departmentMaster          Department?                   @relation(fields: [departmentId], references: [id])
+  positionMasterId          String?
+  positionMaster            PositionMaster?               @relation(fields: [positionMasterId], references: [id])
+  employmentTypeId          String?
+  employmentType            EmploymentType?               @relation(fields: [employmentTypeId], references: [id])
+  roleMasterId              String?
+  roleMaster                RoleMaster?                   @relation(fields: [roleMasterId], references: [id])
+  jobType                   String?
+  isFullTime                Boolean                       @default(false)
+  monthlyScheduledMinutes   Int?
+  displayOrder              Int                           @default(0)
+  attendanceLogs            AttendanceLog[]
+  shifts                    Shift[]
+  paidLeaves                PaidLeave[]
+  correctionRequests        AttendanceCorrectionRequest[]
+  leaveRequests             LeaveRequest[]
+  qualifications            UserQualification[]
+  reportExportHistories     ReportExportHistory[]
   aiHelpUnansweredQuestions AiHelpUnansweredQuestion[]
-  aiHelpConversations AiHelpConversation[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  aiHelpConversations       AiHelpConversation[]
+  attendanceRequests        AttendanceRequest[]
+  approvalHistories         ApprovalHistory[]             @relation("ApprovalHistoryActor")
+  approvalStepApprovers     ApprovalStepApprover[]
+  approvalDelegatesFrom     ApprovalDelegate[]            @relation("ApprovalDelegateFrom")
+  approvalDelegatesTo       ApprovalDelegate[]            @relation("ApprovalDelegateTo")
+  userDepartmentPermissions UserDepartmentPermission[]
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
 
   @@index([companyId, displayOrder])
 }
 
+model AttendanceRequest {
+  id                String            @id @default(cuid())
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  requestType       RequestType
+  status            RequestStatus     @default(DRAFT)
+  title             String?
+  targetDate        DateTime?
+  targetDateFrom    DateTime?
+  targetDateTo      DateTime?
+  payloadJson       Json?
+  currentStepOrder  Int?
+  submittedAt       DateTime?
+  resolvedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  approvalHistories ApprovalHistory[]
+
+  @@index([companyId, userId, createdAt])
+  @@index([companyId, requestType, status])
+  @@index([companyId, status, createdAt])
+}
+
+model ApprovalHistory {
+  id                  String            @id @default(cuid())
+  companyId           String
+  requestId           String
+  request             AttendanceRequest @relation(fields: [requestId], references: [id])
+  actorUserId         String?
+  actorUser           User?             @relation("ApprovalHistoryActor", fields: [actorUserId], references: [id])
+  action              ApprovalAction
+  fromStatus          RequestStatus?
+  toStatus            RequestStatus?
+  stepOrder           Int?
+  comment             String?
+  delegatedFromUserId String?
+  createdAt           DateTime          @default(now())
+
+  @@index([companyId, requestId, createdAt])
+  @@index([companyId, actorUserId, createdAt])
+}
+
 model AiHelpFaq {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  question  String
-  answer    String
-  keywords  String?
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
+  id            String               @id @default(cuid())
+  companyId     String
+  company       Company              @relation(fields: [companyId], references: [id])
+  question      String
+  answer        String
+  keywords      String?
+  isActive      Boolean              @default(true)
+  sortOrder     Int                  @default(0)
   conversations AiHelpConversation[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   @@index([companyId, isActive, sortOrder])
 }
@@ -157,17 +262,17 @@ model AiHelpUnansweredQuestion {
 }
 
 model AiHelpConversation {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  question  String
-  answer    String
+  id           String     @id @default(cuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  question     String
+  answer       String
   matchedFaqId String?
-  matchedFaq AiHelpFaq? @relation(fields: [matchedFaqId], references: [id])
-  resolved  Boolean?
-  createdAt DateTime @default(now())
+  matchedFaq   AiHelpFaq? @relation(fields: [matchedFaqId], references: [id])
+  resolved     Boolean?
+  createdAt    DateTime   @default(now())
 
   @@index([companyId, createdAt])
   @@index([userId, createdAt])
@@ -225,20 +330,20 @@ model AuditLog {
 }
 
 model Shift {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  workDate  DateTime
-  startTime String
-  endTime   String
-  breakMinutes Int @default(60)
-  patternCode String?
+  id            String       @id @default(cuid())
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  workDate      DateTime
+  startTime     String
+  endTime       String
+  breakMinutes  Int          @default(60)
+  patternCode   String?
   workPatternId String?
-  workPattern WorkPattern? @relation(fields: [workPatternId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  workPattern   WorkPattern? @relation(fields: [workPatternId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@index([companyId, userId, workDate])
 }
@@ -257,54 +362,54 @@ model ShiftEvent {
 }
 
 model CareStaffingRule {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  category  WorkPatternCategory
-  requiredCount Int @default(0)
-  floorId   String?
-  departmentId String?
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id])
+  category      WorkPatternCategory
+  requiredCount Int                 @default(0)
+  floorId       String?
+  departmentId  String?
   effectiveFrom DateTime?
-  effectiveTo DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  effectiveTo   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([companyId, category])
   @@index([companyId, floorId, departmentId])
 }
 
 model CareFullTimeEquivalentRule {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  standardMonthlyMinutes Int @default(9600)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  companyId              String
+  company                Company  @relation(fields: [companyId], references: [id])
+  standardMonthlyMinutes Int      @default(9600)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model QualificationMaster {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  name      String
-  userQualifications UserQualification[]
+  id                     String                  @id @default(cuid())
+  companyId              String
+  company                Company                 @relation(fields: [companyId], references: [id])
+  name                   String
+  userQualifications     UserQualification[]
   careQualificationRules CareQualificationRule[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   @@unique([companyId, name])
   @@index([companyId])
 }
 
 model UserQualification {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id])
+  user            User                @relation(fields: [userId], references: [id])
   qualificationId String
   qualification   QualificationMaster @relation(fields: [qualificationId], references: [id])
-  createdAt       DateTime @default(now())
+  createdAt       DateTime            @default(now())
 
   @@unique([userId, qualificationId])
   @@index([userId])
@@ -312,18 +417,18 @@ model UserQualification {
 }
 
 model CareQualificationRule {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
+  company         Company             @relation(fields: [companyId], references: [id])
   qualificationId String
   qualification   QualificationMaster @relation(fields: [qualificationId], references: [id])
-  requiredCount   Int      @default(0)
+  requiredCount   Int                 @default(0)
   floorId         String?
   departmentId    String?
   effectiveFrom   DateTime?
   effectiveTo     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@unique([companyId, qualificationId])
   @@index([companyId, qualificationId])
@@ -331,19 +436,18 @@ model CareQualificationRule {
 }
 
 model PaidLeave {
-  id        String   @id @default(cuid())
-  companyId String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  grantedDays Float  @default(0)
-  usedDays    Float  @default(0)
+  id          String   @id @default(cuid())
+  companyId   String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  grantedDays Float    @default(0)
+  usedDays    Float    @default(0)
   note        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([companyId, userId])
 }
-
 
 enum CorrectionStatus {
   PENDING
@@ -352,34 +456,36 @@ enum CorrectionStatus {
 }
 
 model AttendanceCorrectionRequest {
-  id             String           @id @default(cuid())
-  companyId      String
-  userId         String
-  user           User             @relation(fields: [userId], references: [id])
-  targetDate     DateTime
-  requestedType  AttendanceType
-  requestedAt    DateTime
-  reason         String
-  status         CorrectionStatus @default(PENDING)
-  adminComment   String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  companyId     String
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  targetDate    DateTime
+  requestedType AttendanceType
+  requestedAt   DateTime
+  reason        String
+  status        CorrectionStatus @default(PENDING)
+  adminComment  String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([companyId, userId, targetDate])
 }
 
-
 model Department {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  code      String
-  name      String
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                        String                     @id @default(cuid())
+  companyId                 String
+  company                   Company                    @relation(fields: [companyId], references: [id])
+  code                      String
+  name                      String
+  sortOrder                 Int                        @default(0)
+  isActive                  Boolean                    @default(true)
+  users                     User[]
+  approvalRoutes            ApprovalRoute[]
+  approvalStepApprovers     ApprovalStepApprover[]
+  userDepartmentPermissions UserDepartmentPermission[]
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, sortOrder])
@@ -418,33 +524,152 @@ model PositionMaster {
 }
 
 model RoleMaster {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  code        String
-  name        String
-  description String?
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
-  users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    String                 @id @default(cuid())
+  companyId             String
+  company               Company                @relation(fields: [companyId], references: [id])
+  code                  String
+  name                  String
+  description           String?
+  sortOrder             Int                    @default(0)
+  isActive              Boolean                @default(true)
+  users                 User[]
+  approvalStepApprovers ApprovalStepApprover[]
+  rolePermissions       RolePermission[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, sortOrder])
 }
 
-model LeaveTypeMaster {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  code        String
+model ApprovalRoute {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  departmentId  String?
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  requestType   RequestType
+  name          String
+  description   String?
+  conditionJson Json?
+  isDefault     Boolean        @default(false)
+  isActive      Boolean        @default(true)
+  steps         ApprovalStep[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([companyId, requestType, isActive])
+  @@index([companyId, departmentId])
+}
+
+model ApprovalStep {
+  id          String                 @id @default(cuid())
+  routeId     String
+  route       ApprovalRoute          @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stepOrder   Int
   name        String
-  allowHourly Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  requirement ApprovalRequirement    @default(ANY_ONE)
+  approvers   ApprovalStepApprover[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@unique([routeId, stepOrder])
+  @@index([routeId])
+}
+
+model ApprovalStepApprover {
+  id           String               @id @default(cuid())
+  stepId       String
+  step         ApprovalStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  approverType ApprovalApproverType
+  userId       String?
+  user         User?                @relation(fields: [userId], references: [id])
+  roleMasterId String?
+  roleMaster   RoleMaster?          @relation(fields: [roleMasterId], references: [id])
+  departmentId String?
+  department   Department?          @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime             @default(now())
+
+  @@index([stepId])
+  @@index([userId])
+  @@index([roleMasterId])
+  @@index([departmentId])
+}
+
+model ApprovalDelegate {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  fromUserId  String
+  fromUser    User         @relation("ApprovalDelegateFrom", fields: [fromUserId], references: [id])
+  toUserId    String
+  toUser      User         @relation("ApprovalDelegateTo", fields: [toUserId], references: [id])
+  requestType RequestType?
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean      @default(true)
+  note        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([companyId, fromUserId, startsAt, endsAt])
+  @@index([companyId, toUserId, startsAt, endsAt])
+}
+
+model RolePermission {
+  id                  String     @id @default(cuid())
+  companyId           String
+  company             Company    @relation(fields: [companyId], references: [id])
+  roleMasterId        String
+  roleMaster          RoleMaster @relation(fields: [roleMasterId], references: [id], onDelete: Cascade)
+  feature             String
+  canView             Boolean    @default(false)
+  canCreate           Boolean    @default(false)
+  canEdit             Boolean    @default(false)
+  canDelete           Boolean    @default(false)
+  canApprove          Boolean    @default(false)
+  canExportCsv        Boolean    @default(false)
+  canExportPdf        Boolean    @default(false)
+  canExportExcel      Boolean    @default(false)
+  canManagePermission Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@unique([roleMasterId, feature])
+  @@index([companyId, feature])
+}
+
+model UserDepartmentPermission {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?     @relation(fields: [departmentId], references: [id])
+  scope        DepartmentScope
+  canView      Boolean         @default(true)
+  canEdit      Boolean         @default(false)
+  canApprove   Boolean         @default(false)
+  canExport    Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([companyId, userId])
+  @@index([companyId, departmentId])
+}
+
+model LeaveTypeMaster {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  code          String
+  name          String
+  allowHourly   Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   leaveRequests LeaveRequest[]
 
   @@unique([companyId, code])
@@ -463,50 +688,49 @@ enum LeaveRequestUnit {
 }
 
 model LeaveRequest {
-  id            String             @id @default(cuid())
-  companyId     String
-  company       Company            @relation(fields: [companyId], references: [id])
-  userId        String
-  user          User               @relation(fields: [userId], references: [id])
-  leaveTypeId   String
-  leaveType     LeaveTypeMaster    @relation(fields: [leaveTypeId], references: [id])
-  targetDate    DateTime
-  unit          LeaveRequestUnit   @default(FULL_DAY)
-  hours         Float?
-  reason        String
-  status        LeaveRequestStatus @default(PENDING)
-  adminComment  String?
-  approvedAt    DateTime?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id           String             @id @default(cuid())
+  companyId    String
+  company      Company            @relation(fields: [companyId], references: [id])
+  userId       String
+  user         User               @relation(fields: [userId], references: [id])
+  leaveTypeId  String
+  leaveType    LeaveTypeMaster    @relation(fields: [leaveTypeId], references: [id])
+  targetDate   DateTime
+  unit         LeaveRequestUnit   @default(FULL_DAY)
+  hours        Float?
+  reason       String
+  status       LeaveRequestStatus @default(PENDING)
+  adminComment String?
+  approvedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@index([companyId, userId, targetDate])
   @@index([companyId, status])
 }
 
-
 model WorkPattern {
-  id           String   @id @default(cuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  code         String
-  name         String
-  category     WorkPatternCategory @default(DAY)
-  startTime    String
-  endTime      String
-  breakMinutes Int      @default(60)
-  colorClass   String   @default("bg-emerald-400 text-slate-900")
-  displayColor String   @default("emerald")
-  isHoliday    Boolean  @default(false)
-  isNightShift Boolean  @default(false)
-  autoCreateAfterNight Boolean @default(false)
-  countsAsWork Boolean  @default(true)
-  countsAsLeave Boolean @default(false)
-  sortOrder    Int      @default(0)
-  isActive     Boolean  @default(true)
-  shifts       Shift[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   String              @id @default(cuid())
+  companyId            String
+  company              Company             @relation(fields: [companyId], references: [id])
+  code                 String
+  name                 String
+  category             WorkPatternCategory @default(DAY)
+  startTime            String
+  endTime              String
+  breakMinutes         Int                 @default(60)
+  colorClass           String              @default("bg-emerald-400 text-slate-900")
+  displayColor         String              @default("emerald")
+  isHoliday            Boolean             @default(false)
+  isNightShift         Boolean             @default(false)
+  autoCreateAfterNight Boolean             @default(false)
+  countsAsWork         Boolean             @default(true)
+  countsAsLeave        Boolean             @default(false)
+  sortOrder            Int                 @default(0)
+  isActive             Boolean             @default(true)
+  shifts               Shift[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, sortOrder])
