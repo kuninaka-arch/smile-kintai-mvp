@@ -42,6 +42,7 @@ const mainItems: MenuItem[] = [
   { href: "/admin/gps", label: "GPS地図表示", key: "gps", icon: "map" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/approval-routes", label: "承認ルート管理", key: "approval-routes", icon: "shield" },
+  { href: "/admin/attendance-requests", label: "共通申請一覧", key: "attendance-requests", icon: "shield" },
   { href: "/admin/permissions", label: "権限管理", key: "permissions", icon: "shield" },
   { href: "/admin/ai-help", label: "AI問い合わせ管理", key: "ai-help", icon: "database" },
   { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" }
@@ -73,6 +74,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/approval-routes", label: "承認ルート管理", key: "approval-routes", icon: "shield" },
+  { href: "/admin/attendance-requests", label: "共通申請一覧", key: "attendance-requests", icon: "shield" },
   { href: "/admin/permissions", label: "権限管理", key: "permissions", icon: "shield" },
   { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },
   { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }
