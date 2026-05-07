@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertDefaultApprovalRouteNotDuplicate, normalizeApprovalRouteDepartmentId } from "@/lib/approval-routes";
 import { logAction } from "@/lib/audit-log";
 import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
@@ -70,7 +71,7 @@ function routePayload(body: any, companyId: string) {
 
   return {
     companyId,
-    departmentId: body.departmentId || null,
+    departmentId: normalizeApprovalRouteDepartmentId(body.departmentId),
     requestType: body.requestType,
     name: String(body.name ?? "").trim(),
     description: body.description ? String(body.description) : null,
@@ -107,6 +108,14 @@ export async function POST(req: Request) {
   try {
     const data = routePayload(body, session.user.companyId);
     if (!data.name) return apiError("承認ルート名を入力してください。", 400);
+
+    if (data.isDefault) {
+      await assertDefaultApprovalRouteNotDuplicate({
+        companyId: session.user.companyId,
+        departmentId: data.departmentId,
+        requestType: data.requestType
+      });
+    }
 
     const route = await prisma.approvalRoute.create({
       data,

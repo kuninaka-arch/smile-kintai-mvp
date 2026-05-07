@@ -111,6 +111,7 @@ export default async function ApprovalRoutesPage() {
                       <td className="p-4">{route.department?.name ?? "全社共通"}</td>
                       <td className="p-4">
                         <div className="space-y-1">
+                          <p className="text-xs font-black text-slate-500">ステップ数: {route.steps.length}</p>
                           {route.steps.map((step) => (
                             <p key={step.id} className="text-xs font-bold text-slate-600">
                               {step.stepOrder}. {step.name} / {step.requirement === "ANY_ONE" ? "誰か1人" : "全員承認"} / {step.approvers.length}件

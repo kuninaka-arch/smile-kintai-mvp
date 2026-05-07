@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertDefaultApprovalRouteNotDuplicate, normalizeApprovalRouteDepartmentId } from "@/lib/approval-routes";
 import { logAction } from "@/lib/audit-log";
 import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
@@ -90,18 +91,30 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return apiError("承認者を1件以上設定してください。", 400);
   }
 
+  const departmentId = normalizeApprovalRouteDepartmentId(body.departmentId);
+  const isDefault = Boolean(body.isDefault);
+
   let updated;
   try {
+    if (isDefault) {
+      await assertDefaultApprovalRouteNotDuplicate({
+        companyId: session.user.companyId,
+        departmentId,
+        requestType: body.requestType,
+        excludeRouteId: params.id
+      });
+    }
+
     updated = await prisma.$transaction(async (tx) => {
       await tx.approvalStep.deleteMany({ where: { routeId: params.id } });
       return tx.approvalRoute.update({
         where: { id: params.id },
         data: {
-          departmentId: body.departmentId || null,
+          departmentId,
           requestType: body.requestType,
           name: String(body.name).trim(),
           description: body.description ? String(body.description) : null,
-          isDefault: Boolean(body.isDefault),
+          isDefault,
           isActive: body.isActive !== false,
           steps: { create: buildSteps(steps) }
         },

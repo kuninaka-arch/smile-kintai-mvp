@@ -80,6 +80,7 @@ export function ApprovalRouteForm({
   const [steps, setSteps] = useState<Step[]>(normalizeSteps(route));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   function updateStep(index: number, next: Partial<Step>) {
     setSteps((current) => current.map((step, i) => (i === index ? { ...step, ...next } : step)));
@@ -103,6 +104,7 @@ export function ApprovalRouteForm({
     if (saving) return;
     setSaving(true);
     setMessage("");
+    setMessageType("success");
 
     const res = await fetch(route ? `/api/admin/approval-routes/${route.id}` : "/api/admin/approval-routes", {
       method: route ? "PUT" : "POST",
@@ -112,6 +114,7 @@ export function ApprovalRouteForm({
 
     setSaving(false);
     if (res.ok) {
+      setMessageType("success");
       setMessage(route ? "承認ルートを更新しました。" : "承認ルートを作成しました。");
       if (!route) {
         setName("");
@@ -121,6 +124,7 @@ export function ApprovalRouteForm({
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
+      setMessageType("error");
       setMessage(data.error ?? "保存に失敗しました。");
     }
   }
@@ -129,13 +133,16 @@ export function ApprovalRouteForm({
     if (!route || saving) return;
     setSaving(true);
     setMessage("");
+    setMessageType("success");
     const res = await fetch(`/api/admin/approval-routes/${route.id}`, { method: "DELETE" });
     setSaving(false);
     if (res.ok) {
+      setMessageType("success");
       setMessage("承認ルートを削除しました。");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
+      setMessageType("error");
       setMessage(data.error ?? "削除に失敗しました。");
     }
   }
@@ -179,6 +186,9 @@ export function ApprovalRouteForm({
             <option key={department.id} value={department.id}>{department.name}</option>
           ))}
         </select>
+        <p className="mt-1 text-xs font-bold text-slate-500">
+          部署を指定しない場合は、全社共通の承認ルートとして扱います。
+        </p>
       </label>
 
       <Field label="説明" value={description} onChange={setDescription} required={false} />
@@ -193,6 +203,12 @@ export function ApprovalRouteForm({
           有効
         </label>
       </div>
+
+      {isDefault && (
+        <p className="rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">
+          既定ルートは、同じ申請種別と同じ対象部署につき1件のみ登録できます。部署未指定の場合は全社共通として1件のみです。
+        </p>
+      )}
 
       <div className="space-y-3">
         {steps.map((step, stepIndex) => (
@@ -264,7 +280,15 @@ export function ApprovalRouteForm({
         )}
       </div>
 
-      {message && <p className="rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-700">{message}</p>}
+      {message && (
+        <p
+          className={`rounded-xl p-3 text-sm font-bold ${
+            messageType === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"
+          }`}
+        >
+          {message}
+        </p>
+      )}
     </form>
   );
 }
