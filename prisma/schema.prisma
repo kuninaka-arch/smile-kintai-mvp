@@ -61,6 +61,9 @@ model Company {
   careQualificationRules CareQualificationRule[]
   auditLogs AuditLog[]
   reportExportHistories ReportExportHistory[]
+  aiHelpFaqs AiHelpFaq[]
+  aiHelpUnansweredQuestions AiHelpUnansweredQuestion[]
+  aiHelpConversations AiHelpConversation[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -114,10 +117,61 @@ model User {
   leaveRequests LeaveRequest[]
   qualifications UserQualification[]
   reportExportHistories ReportExportHistory[]
+  aiHelpUnansweredQuestions AiHelpUnansweredQuestion[]
+  aiHelpConversations AiHelpConversation[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   @@index([companyId, displayOrder])
+}
+
+model AiHelpFaq {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  question  String
+  answer    String
+  keywords  String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  conversations AiHelpConversation[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, isActive, sortOrder])
+}
+
+model AiHelpUnansweredQuestion {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  question  String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, resolved, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AiHelpConversation {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  question  String
+  answer    String
+  matchedFaqId String?
+  matchedFaq AiHelpFaq? @relation(fields: [matchedFaqId], references: [id])
+  resolved  Boolean?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([matchedFaqId])
 }
 
 model ReportExportHistory {

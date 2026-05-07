@@ -41,6 +41,7 @@ const mainItems: MenuItem[] = [
   { href: "/admin/corrections", label: "打刻修正申請", key: "corrections", icon: "edit" },
   { href: "/admin/gps", label: "GPS地図表示", key: "gps", icon: "map" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
+  { href: "/admin/ai-help", label: "AI問い合わせ管理", key: "ai-help", icon: "database" },
   { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" }
 ];
 
@@ -66,6 +67,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/care/night-shift", label: "夜勤体制表", key: "care-night-shift", icon: "clock" },
   { href: "/admin/care/addition-reports", label: "加算資料", key: "care-addition-reports", icon: "database" },
   { href: "/admin/care/report-exports", label: "帳票出力履歴", key: "care-report-exports", icon: "briefcase" },
+  { href: "/admin/ai-help", label: "AI問い合わせ管理", key: "ai-help", icon: "database" },
   { href: "/admin/audit-logs", label: "監査ログ", key: "audit-logs", icon: "shield" },
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },

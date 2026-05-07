@@ -27,7 +27,10 @@ const actionLabels: Record<string, string> = {
   UPDATE_QUALIFICATION: "資格マスタ変更",
   ASSIGN_QUALIFICATION: "スタッフ資格付与",
   REMOVE_QUALIFICATION: "スタッフ資格解除",
-  SAVE_QUALIFICATION_RULES: "資格別必要人数変更"
+  SAVE_QUALIFICATION_RULES: "資格別必要人数変更",
+  CREATE_FAQ: "FAQ追加",
+  UPDATE_FAQ: "FAQ編集",
+  DELETE_FAQ: "FAQ削除"
 };
 
 const targetTypeLabels: Record<string, string> = {
@@ -42,7 +45,8 @@ const targetTypeLabels: Record<string, string> = {
   FTE_RULE: "常勤換算基準",
   QUALIFICATION: "資格マスタ",
   USER_QUALIFICATION: "スタッフ資格",
-  QUALIFICATION_RULE: "資格別必要人数"
+  QUALIFICATION_RULE: "資格別必要人数",
+  AI_FAQ: "AI問い合わせFAQ"
 };
 
 function labelFor(map: Record<string, string>, value: string | null | undefined) {
