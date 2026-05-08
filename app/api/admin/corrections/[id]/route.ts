@@ -1,5 +1,6 @@
 import { CorrectionStatus } from "@prisma/client";
 import { logAction } from "@/lib/audit-log";
+import { resolveApprovalPermission } from "@/lib/approval-permissions";
 import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
@@ -23,6 +24,77 @@ type AttendanceRequestSyncMeta =
       attendanceRequestSyncFailed: true;
       failureReason: string;
     };
+
+type ApprovalPermissionMeta =
+  | {
+      approvalPermissionChecked: true;
+      approvalPermissionCanApprove: boolean;
+      approvalPermissionReason: string;
+      approvalPermissionMatchedApproverType?: string;
+      approvalPermissionRequirement?: string;
+    }
+  | {
+      approvalPermissionChecked: false;
+      approvalPermissionSkipped: true;
+      approvalPermissionSkipReason: string;
+    }
+  | {
+      approvalPermissionChecked: false;
+      approvalPermissionFailed: true;
+      approvalPermissionFailureReason: string;
+    };
+
+async function resolveApprovalPermissionMeta({
+  companyId,
+  correctionId,
+  actorUserId
+}: {
+  companyId: string;
+  correctionId: string;
+  actorUserId: string;
+}): Promise<ApprovalPermissionMeta> {
+  try {
+    const attendanceRequest = await prisma.attendanceRequest.findFirst({
+      where: {
+        companyId,
+        requestType: "ATTENDANCE_CORRECTION",
+        payloadJson: {
+          path: ["legacyCorrectionRequestId"],
+          equals: correctionId
+        }
+      },
+      select: { id: true }
+    });
+
+    if (!attendanceRequest) {
+      return {
+        approvalPermissionChecked: false,
+        approvalPermissionSkipped: true,
+        approvalPermissionSkipReason: "対応するAttendanceRequestが見つかりません。"
+      };
+    }
+
+    const permission = await resolveApprovalPermission({
+      attendanceRequestId: attendanceRequest.id,
+      actorUserId,
+      companyId
+    });
+
+    return {
+      approvalPermissionChecked: true,
+      approvalPermissionCanApprove: permission.canApprove,
+      approvalPermissionReason: permission.reason,
+      approvalPermissionMatchedApproverType: permission.matchedApprover?.approverType,
+      approvalPermissionRequirement: permission.requirement
+    };
+  } catch (error) {
+    return {
+      approvalPermissionChecked: false,
+      approvalPermissionFailed: true,
+      approvalPermissionFailureReason: error instanceof Error ? error.message : "承認権限判定に失敗しました。"
+    };
+  }
+}
 
 async function syncAttendanceRequestStatus({
   companyId,
@@ -129,6 +201,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "打刻修正申請");
   if (lockError) return lockError;
 
+  const approvalPermissionMeta = await resolveApprovalPermissionMeta({
+    companyId: session.user.companyId,
+    correctionId: request.id,
+    actorUserId: session.user.id
+  });
+
   const updated = await prisma.attendanceCorrectionRequest.update({
     where: { id: params.id },
     data: { status }
@@ -162,7 +240,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     targetId: request.id,
     before: request,
     after: updated,
-    meta: { status, ...attendanceRequestSyncMeta }
+    meta: { status, ...attendanceRequestSyncMeta, ...approvalPermissionMeta }
   });
 
   return Response.json({ ok: true });
