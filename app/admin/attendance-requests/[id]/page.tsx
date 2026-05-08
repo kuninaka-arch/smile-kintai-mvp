@@ -255,6 +255,8 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
             status={request.status}
             legacyCorrectionRequestId={legacyCorrectionRequestId}
             legacyCorrectionStatus={legacyCorrectionStatus}
+            canApproveByPermission={approvalPermission.canApprove}
+            approvalPermissionReason={approvalPermission.reason}
           />
 
           <ApprovalPermissionDiagnosis permission={approvalPermission} />

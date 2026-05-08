@@ -64,12 +64,16 @@ export function AttendanceRequestApprovalActions({
   requestType,
   status,
   legacyCorrectionRequestId,
-  legacyCorrectionStatus
+  legacyCorrectionStatus,
+  canApproveByPermission,
+  approvalPermissionReason
 }: {
   requestType: RequestType;
   status: RequestStatus;
   legacyCorrectionRequestId: string;
   legacyCorrectionStatus: CorrectionStatus | null;
+  canApproveByPermission: boolean;
+  approvalPermissionReason: string;
 }) {
   const router = useRouter();
   const [loadingStatus, setLoadingStatus] = useState<"APPROVED" | "REJECTED" | null>(null);
@@ -80,7 +84,12 @@ export function AttendanceRequestApprovalActions({
   const isPending = status === "PENDING";
   const legacyCorrectionStatusLabel = legacyCorrectionStatus ? correctionStatusLabels[legacyCorrectionStatus] ?? legacyCorrectionStatus : "-";
   const statusMismatched = !!legacyCorrectionStatus && status !== legacyCorrectionStatus;
-  const canOperate = isAttendanceCorrection && isPending && !!legacyCorrectionRequestId && legacyCorrectionStatus === "PENDING";
+  const canOperate =
+    isAttendanceCorrection &&
+    isPending &&
+    !!legacyCorrectionRequestId &&
+    legacyCorrectionStatus === "PENDING" &&
+    canApproveByPermission;
   const isLoading = loadingStatus !== null;
   const panelClassName = canOperate ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white";
 
@@ -165,6 +174,7 @@ export function AttendanceRequestApprovalActions({
         {isAttendanceCorrection && isPending && legacyCorrectionStatus && legacyCorrectionStatus !== "PENDING" && (
           <p>既存申請はすでに処理済みです。この画面からは承認・却下できません。</p>
         )}
+        {!canApproveByPermission && <p className="mt-2 text-red-700">承認権限がありません：{approvalPermissionReason}</p>}
         {canOperate && <p>この操作は既存の打刻修正申請APIを呼び出します。AttendanceRequestは既存API側のsoft同期で更新されます。</p>}
       </div>
 
