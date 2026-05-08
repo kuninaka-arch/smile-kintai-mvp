@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RequestStatus, RequestType } from "@prisma/client";
+import type { CorrectionStatus } from "@prisma/client";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { AttendanceRequestApprovalActions } from "@/components/AttendanceRequestApprovalActions";
 import { requireAdmin } from "@/components/RequireAuth";
@@ -131,6 +132,22 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
   const requestedType = getPayloadValue(request.payloadJson, "requestedType");
   const requestedTimeText = getPayloadValue(request.payloadJson, "requestedTimeText");
   const reason = getPayloadValue(request.payloadJson, "reason");
+  const legacyCorrectionRequest = legacyCorrectionRequestId
+    ? await prisma.attendanceCorrectionRequest.findFirst({
+        where: {
+          id: legacyCorrectionRequestId,
+          companyId: session.user.companyId
+        },
+        select: {
+          id: true,
+          status: true,
+          targetDate: true,
+          requestedType: true,
+          requestedAt: true
+        }
+      })
+    : null;
+  const legacyCorrectionStatus: CorrectionStatus | null = legacyCorrectionRequest?.status ?? null;
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -175,7 +192,12 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
             </div>
           </section>
 
-          <AttendanceRequestApprovalActions requestType={request.requestType} status={request.status} legacyCorrectionRequestId={legacyCorrectionRequestId} />
+          <AttendanceRequestApprovalActions
+            requestType={request.requestType}
+            status={request.status}
+            legacyCorrectionRequestId={legacyCorrectionRequestId}
+            legacyCorrectionStatus={legacyCorrectionStatus}
+          />
 
           <section className="rounded-3xl bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-black text-slate-900">承認ルート情報</h2>

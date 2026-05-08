@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { RequestStatus, RequestType } from "@prisma/client";
+import type { CorrectionStatus, RequestStatus, RequestType } from "@prisma/client";
 
 const requestTypeLabels: Record<RequestType, string> = {
   ATTENDANCE_CORRECTION: "打刻修正",
@@ -34,6 +34,12 @@ const statusClassNames: Record<RequestStatus, string> = {
   CANCELED: "bg-slate-100 text-slate-500"
 };
 
+const correctionStatusLabels: Record<CorrectionStatus, string> = {
+  PENDING: "申請中",
+  APPROVED: "承認済み",
+  REJECTED: "却下"
+};
+
 function InfoItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-4">
@@ -57,11 +63,13 @@ async function readErrorMessage(response: Response) {
 export function AttendanceRequestApprovalActions({
   requestType,
   status,
-  legacyCorrectionRequestId
+  legacyCorrectionRequestId,
+  legacyCorrectionStatus
 }: {
   requestType: RequestType;
   status: RequestStatus;
   legacyCorrectionRequestId: string;
+  legacyCorrectionStatus: CorrectionStatus | null;
 }) {
   const router = useRouter();
   const [loadingStatus, setLoadingStatus] = useState<"APPROVED" | "REJECTED" | null>(null);
@@ -70,7 +78,9 @@ export function AttendanceRequestApprovalActions({
 
   const isAttendanceCorrection = requestType === "ATTENDANCE_CORRECTION";
   const isPending = status === "PENDING";
-  const canOperate = isAttendanceCorrection && isPending && !!legacyCorrectionRequestId;
+  const legacyCorrectionStatusLabel = legacyCorrectionStatus ? correctionStatusLabels[legacyCorrectionStatus] ?? legacyCorrectionStatus : "-";
+  const statusMismatched = !!legacyCorrectionStatus && status !== legacyCorrectionStatus;
+  const canOperate = isAttendanceCorrection && isPending && !!legacyCorrectionRequestId && legacyCorrectionStatus === "PENDING";
   const isLoading = loadingStatus !== null;
   const panelClassName = canOperate ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white";
 
@@ -115,8 +125,9 @@ export function AttendanceRequestApprovalActions({
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <InfoItem label="現在のステータス" value={statusLabels[status] ?? status} />
+      <div className="grid gap-3 md:grid-cols-4">
+        <InfoItem label="共通申請ステータス" value={statusLabels[status] ?? status} />
+        <InfoItem label="既存打刻修正申請ステータス" value={legacyCorrectionStatusLabel} />
         <InfoItem label="申請種別" value={requestTypeLabels[requestType] ?? requestType} />
         <InfoItem label="既存申請ID" value={legacyCorrectionRequestId || "-"} mono />
       </div>
@@ -147,6 +158,13 @@ export function AttendanceRequestApprovalActions({
         {!isAttendanceCorrection && <p>この申請種別の共通承認UIはまだ未対応です。</p>}
         {isAttendanceCorrection && !isPending && <p>この申請は処理済みです。</p>}
         {isAttendanceCorrection && isPending && !legacyCorrectionRequestId && <p>既存申請IDがないため、この画面からは操作できません。</p>}
+        {isAttendanceCorrection && isPending && legacyCorrectionRequestId && !legacyCorrectionStatus && (
+          <p>対応する既存の打刻修正申請が見つかりません。この画面からは承認・却下できません。</p>
+        )}
+        {statusMismatched && <p className="mt-2 text-amber-700">共通申請と既存申請のステータスが一致していません。既存申請側を正として確認してください。</p>}
+        {isAttendanceCorrection && isPending && legacyCorrectionStatus && legacyCorrectionStatus !== "PENDING" && (
+          <p>既存申請はすでに処理済みです。この画面からは承認・却下できません。</p>
+        )}
         {canOperate && <p>この操作は既存の打刻修正申請APIを呼び出します。AttendanceRequestは既存API側のsoft同期で更新されます。</p>}
       </div>
 
