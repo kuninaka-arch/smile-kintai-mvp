@@ -208,6 +208,7 @@ export default async function AttendanceRequestsPage({
               <div>
                 <h2 className="text-lg font-black text-slate-900">申請一覧</h2>
                 <p className="text-sm text-slate-500">全{total}件中 {requests.length}件を表示しています。</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">横にスクロールできます</p>
               </div>
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Link

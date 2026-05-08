@@ -38,6 +38,7 @@ export default async function AdminLeavesPage() {
 
         <div className="mx-auto max-w-7xl px-5 py-6">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
+            <p className="border-b px-5 py-3 text-xs font-bold text-slate-400">横にスクロールできます</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1040px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">

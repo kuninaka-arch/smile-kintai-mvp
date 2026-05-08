@@ -26,7 +26,8 @@ export default async function AdminCorrectionsPage() {
 
         <div className="mx-auto max-w-7xl px-5 py-6">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
-            <table className="w-full min-w-[920px] text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
                   <th className="p-4">社員</th>
@@ -51,7 +52,8 @@ export default async function AdminCorrectionsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </section>
         </div>
       </section>
