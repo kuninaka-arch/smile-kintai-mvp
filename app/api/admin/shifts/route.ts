@@ -1,14 +1,25 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
   const workDate = new Date(`${body.workDate}T00:00:00`);
+  const user = await prisma.user.findFirst({
+    where: {
+      id: body.userId,
+      companyId: session.user.companyId
+    },
+    select: { id: true }
+  });
+
+  if (!user) {
+    return apiError("対象社員が見つかりません。", 404);
+  }
 
   const existing = await prisma.shift.findFirst({
     where: {
