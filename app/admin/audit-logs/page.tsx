@@ -117,6 +117,115 @@ function prettyJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+type JsonObject = Record<string, Prisma.JsonValue>;
+
+const approvalPermissionMetaKeys = [
+  "approvalPermissionChecked",
+  "approvalPermissionCanApprove",
+  "approvalPermissionReason",
+  "approvalPermissionMatchedApproverType",
+  "approvalPermissionRequirement",
+  "approvalPermissionSkipped",
+  "approvalPermissionSkipReason",
+  "approvalPermissionFailed",
+  "approvalPermissionFailureReason"
+] as const;
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasApprovalPermissionMeta(value: JsonObject) {
+  return approvalPermissionMetaKeys.some((key) => key in value);
+}
+
+function approvalPermissionMetaFromAfterJson(value: Prisma.JsonValue | null) {
+  if (!isJsonObject(value)) return null;
+  if (hasApprovalPermissionMeta(value)) return value;
+
+  const meta = value.meta;
+  if (!isJsonObject(meta)) return null;
+  return hasApprovalPermissionMeta(meta) ? meta : null;
+}
+
+function booleanLabel(value: Prisma.JsonValue | undefined) {
+  if (typeof value !== "boolean") return "-";
+  return value ? "はい" : "いいえ";
+}
+
+function textLabel(value: Prisma.JsonValue | undefined) {
+  if (typeof value !== "string" || value.length === 0) return "-";
+  return value;
+}
+
+function ApprovalPermissionDiagnostics({ meta }: { meta: JsonObject | null }) {
+  if (!meta) return null;
+
+  if (meta.approvalPermissionSkipped === true) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        <p className="mb-2 font-black">承認権限診断</p>
+        <dl className="grid gap-1">
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-bold">状態:</dt>
+            <dd>判定スキップ</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-bold">理由:</dt>
+            <dd>{textLabel(meta.approvalPermissionSkipReason)}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+
+  if (meta.approvalPermissionFailed === true) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+        <p className="mb-2 font-black">承認権限診断</p>
+        <dl className="grid gap-1">
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-bold">状態:</dt>
+            <dd>判定失敗</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-bold">理由:</dt>
+            <dd>{textLabel(meta.approvalPermissionFailureReason)}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+      <p className="mb-2 font-black">承認権限診断</p>
+      <dl className="grid gap-1">
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">判定実施:</dt>
+          <dd>{booleanLabel(meta.approvalPermissionChecked)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">承認可能:</dt>
+          <dd>{booleanLabel(meta.approvalPermissionCanApprove)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">理由:</dt>
+          <dd>{textLabel(meta.approvalPermissionReason)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">一致承認者種別:</dt>
+          <dd>{textLabel(meta.approvalPermissionMatchedApproverType)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">承認条件:</dt>
+          <dd>{textLabel(meta.approvalPermissionRequirement)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 function buildQuery(params: Record<string, string | number | undefined>) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -291,6 +400,7 @@ export default async function AuditLogsPage({
                 <tbody>
                   {logs.map((log) => {
                     const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
+                    const approvalPermissionMeta = approvalPermissionMetaFromAfterJson(log.afterJson);
                     return (
                       <tr key={log.id} className="border-t align-top hover:bg-slate-50">
                         <td className="p-4 font-bold text-slate-900">{formatDateTime(log.createdAt)}</td>
@@ -315,6 +425,7 @@ export default async function AuditLogsPage({
                               詳細
                             </summary>
                             <div className="mt-3 grid gap-3 rounded-2xl bg-slate-50 p-3">
+                              <ApprovalPermissionDiagnostics meta={approvalPermissionMeta} />
                               <div>
                                 <p className="mb-1 text-xs font-black text-slate-500">beforeJson</p>
                                 <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(log.beforeJson)}</pre>
