@@ -5,6 +5,7 @@ import type { CorrectionStatus } from "@prisma/client";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { AttendanceRequestApprovalActions } from "@/components/AttendanceRequestApprovalActions";
 import { requireAdmin } from "@/components/RequireAuth";
+import { resolveApprovalPermission } from "@/lib/approval-permissions";
 import { prisma } from "@/lib/prisma";
 
 const requestTypeLabels: Record<RequestType, string> = {
@@ -90,6 +91,58 @@ function InfoItem({ label, value, mono = false }: { label: string; value: string
   );
 }
 
+function ApprovalPermissionDiagnosis({
+  permission
+}: {
+  permission: Awaited<ReturnType<typeof resolveApprovalPermission>>;
+}) {
+  const matchedApprover = permission.matchedApprover;
+  const delegated = Boolean(matchedApprover?.delegatedFromUserId);
+
+  return (
+    <section className="rounded-3xl bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-slate-900">承認可否診断</h2>
+          <p className="mt-1 text-sm font-bold text-slate-600">
+            helper の判定結果を表示しています。現時点ではボタン制御やAPI拒否には使用していません。
+          </p>
+        </div>
+        <span
+          className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
+            permission.canApprove ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+          }`}
+        >
+          {permission.canApprove ? "承認可能" : "承認不可"}
+        </span>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <InfoItem label="canApprove" value={permission.canApprove ? "true / 承認可能" : "false / 承認不可"} />
+        <InfoItem label="reason" value={permission.reason} />
+        <InfoItem label="matchedApprover.approverType" value={matchedApprover?.approverType ?? "該当承認者なし"} />
+        <InfoItem label="matchedApprover.approverId" value={matchedApprover?.approverId ?? "-"} mono />
+        <InfoItem
+          label="matchedApprover.delegatedFromUserId"
+          value={matchedApprover?.delegatedFromUserId ? `代理承認: ${matchedApprover.delegatedFromUserId}` : "-"}
+          mono
+        />
+        <InfoItem label="requirement" value={permission.requirement ?? "-"} />
+        <InfoItem
+          label="stepCompleteAfterThisAction"
+          value={permission.stepCompleteAfterThisAction === undefined ? "-" : String(permission.stepCompleteAfterThisAction)}
+        />
+      </div>
+
+      {delegated && (
+        <p className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-black text-blue-700">
+          代理承認として判定されています。
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default async function AttendanceRequestDetailPage({ params }: { params: { id: string } }) {
   const session = await requireAdmin();
   const request = await prisma.attendanceRequest.findFirst({
@@ -148,6 +201,11 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
       })
     : null;
   const legacyCorrectionStatus: CorrectionStatus | null = legacyCorrectionRequest?.status ?? null;
+  const approvalPermission = await resolveApprovalPermission({
+    attendanceRequestId: request.id,
+    actorUserId: session.user.id,
+    companyId: session.user.companyId
+  });
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -198,6 +256,8 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
             legacyCorrectionRequestId={legacyCorrectionRequestId}
             legacyCorrectionStatus={legacyCorrectionStatus}
           />
+
+          <ApprovalPermissionDiagnosis permission={approvalPermission} />
 
           <section className="rounded-3xl bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-black text-slate-900">承認ルート情報</h2>
