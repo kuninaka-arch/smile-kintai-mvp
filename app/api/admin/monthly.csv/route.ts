@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
 import { minutesToHHMM } from "@/lib/attendance";
+import { requireAdmin } from "@/lib/authz";
+import { logAction } from "@/lib/audit-log";
 import { getPeriodLock } from "@/lib/period-lock";
 import { summarizeMonthlyAttendance } from "@/lib/monthly-attendance";
 
@@ -11,10 +10,9 @@ function csvEscape(value: unknown) {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const url = new URL(req.url);
   const ym = url.searchParams.get("ym") ?? new Date().toISOString().slice(0, 7);
@@ -95,6 +93,22 @@ export async function GET(req: Request) {
   }
 
   const csv = lines.map((row) => row.map(csvEscape).join(",")).join("\n");
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "EXPORT_MONTHLY_CSV",
+    targetType: "REPORT",
+    targetId: ym,
+    after: { fileType: "CSV", reportType: "MONTHLY_ATTENDANCE" },
+    meta: {
+      ym,
+      selectedDepartment,
+      userCount: users.length,
+      rowCount: Math.max(0, lines.length - 1)
+    }
+  });
 
   return new Response("\uFEFF" + csv, {
     headers: {

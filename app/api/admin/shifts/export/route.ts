@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/authz";
+import { logAction } from "@/lib/audit-log";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
@@ -16,10 +15,9 @@ function csvEscape(value: unknown) {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const url = new URL(req.url);
   const now = new Date();
@@ -78,6 +76,23 @@ export async function GET(req: Request) {
   lines.push(["日回数", "", "", ...dailyCounts, String(dailyCounts.reduce((sum, count) => sum + Number(count), 0))]);
 
   const csv = "\uFEFF" + lines.map((line) => line.map(csvEscape).join(",")).join("\n");
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "EXPORT_SHIFT_CSV",
+    targetType: "REPORT",
+    targetId: ym,
+    after: { fileType: "CSV", reportType: "SHIFT" },
+    meta: {
+      ym,
+      userCount: users.length,
+      shiftCount: shifts.length,
+      eventCount: events.length,
+      rowCount: lines.length
+    }
+  });
 
   return new Response(csv, {
     headers: {

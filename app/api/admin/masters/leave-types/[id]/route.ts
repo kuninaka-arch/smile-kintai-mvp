@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
 
@@ -17,10 +16,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     });
 
     if (!item) {
-      return NextResponse.json({ error: "対象が見つかりません。" }, { status: 404 });
+      return apiError("対象データが見つかりません。", 404);
     }
 
-    await prisma.leaveTypeMaster.update({
+    const updated = await prisma.leaveTypeMaster.update({
       where: { id: params.id },
       data: {
         code: body.code,
@@ -31,8 +30,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     });
 
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "UPDATE_LEAVE_TYPE",
+      targetType: "LEAVE_TYPE",
+      targetId: updated.id,
+      before: item,
+      after: updated
+    });
+
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "更新に失敗しました。" }, { status: 400 });
+    return apiError("更新に失敗しました。", 400);
   }
 }

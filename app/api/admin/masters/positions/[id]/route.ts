@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
   const item = await prisma.positionMaster.findFirst({
@@ -15,10 +14,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   });
 
   if (!item) {
-    return NextResponse.json({ error: "対象が見つかりません。" }, { status: 404 });
+    return apiError("対象データが見つかりません。", 404);
   }
 
-  await prisma.positionMaster.update({
+  const updated = await prisma.positionMaster.update({
     where: { id: params.id },
     data: {
       code: body.code,
@@ -26,6 +25,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       sortOrder: Number(body.sortOrder ?? 0),
       isActive: Boolean(body.isActive)
     }
+  });
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "UPDATE_POSITION",
+    targetType: "POSITION",
+    targetId: updated.id,
+    before: item,
+    after: updated
   });
 
   return NextResponse.json({ ok: true });

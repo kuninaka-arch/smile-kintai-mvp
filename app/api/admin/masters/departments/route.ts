@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
 
   try {
-    await prisma.department.create({
+    const department = await prisma.department.create({
       data: {
         companyId: session.user.companyId,
         code: body.code,
@@ -23,8 +22,18 @@ export async function POST(req: Request) {
       }
     });
 
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "CREATE_DEPARTMENT",
+      targetType: "DEPARTMENT",
+      targetId: department.id,
+      after: department
+    });
+
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "登録に失敗しました。コードが重複している可能性があります。" }, { status: 400 });
+    return apiError("登録に失敗しました。コードが重複している可能性があります。", 400);
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { logAction } from "@/lib/audit-log";
+import { apiError, requireAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getPeriodLock } from "@/lib/period-lock";
 
@@ -39,27 +39,34 @@ function parseCsv(text: string) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
   const ym = String(body.ym ?? "");
   const csv = String(body.csv ?? "").replace(/^\uFEFF/, "");
   const [year, month] = ym.split("-").map(Number);
   if (!year || !month || !csv) {
-    return NextResponse.json({ error: "取込データが不正です。" }, { status: 400 });
+    return apiError("取込データが不正です。", 400);
   }
 
   const period = await getPeriodLock(session.user.companyId, ym);
   if (period.locked) {
-    return NextResponse.json({ error: "締め済み期間のため、シフトは取り込めません。" }, { status: 423 });
+    return apiError("締め済み期間のため、シフトは取り込めません。", 423);
   }
 
   const dayCount = new Date(year, month, 0).getDate();
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
+  const beforeCounts = {
+    shifts: await prisma.shift.count({
+      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
+    }),
+    events: await prisma.shiftEvent.count({
+      where: { companyId: session.user.companyId, workDate: { gte: start, lt: end } }
+    }).catch(() => 0)
+  };
   const rows = parseCsv(csv);
   const headerRow = rows.find((row) => row.some((cell) => cell.trim() === "1")) ?? rows[0] ?? [];
   const dayColumns = Array.from({ length: dayCount }, (_, i) => {
@@ -137,6 +144,25 @@ export async function POST(req: Request) {
     ...(shifts.length ? [prisma.shift.createMany({ data: shifts })] : []),
     ...(events.length ? [prisma.shiftEvent.createMany({ data: events })] : [])
   ]);
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "IMPORT_SHIFT_CSV",
+    targetType: "SHIFT",
+    targetId: ym,
+    before: beforeCounts,
+    after: {
+      shifts: shifts.length,
+      events: events.length
+    },
+    meta: {
+      ym,
+      dayCount,
+      csvRows: rows.length
+    }
+  });
 
   return NextResponse.json({ ok: true, count: shifts.length, eventCount: events.length });
 }

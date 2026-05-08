@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
 import { calcDailyWorkMinutes, dateToJaMinutes, formatJaTime, minutesToHHMM, toJaDateKey } from "@/lib/attendance";
+import { requireAdmin } from "@/lib/authz";
+import { logAction } from "@/lib/audit-log";
 
 type Status = "OK" | "LATE" | "EARLY" | "MISSING_IN" | "MISSING_OUT" | "NO_SHIFT";
 
@@ -34,10 +33,9 @@ function csvEscape(value: unknown) {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const url = new URL(req.url);
   const todayStr = toJaDateKey(new Date());
@@ -116,6 +114,22 @@ export async function GET(req: Request) {
   }
 
   const csv = lines.map((row) => row.map(csvEscape).join(",")).join("\n");
+
+  await logAction({
+    request: req,
+    userId: session.user.id,
+    companyId: session.user.companyId,
+    action: "EXPORT_ATTENDANCE_ANALYSIS_CSV",
+    targetType: "REPORT",
+    targetId: dateStr,
+    after: { fileType: "CSV", reportType: "ATTENDANCE_ANALYSIS" },
+    meta: {
+      date: dateStr,
+      graceMinutes,
+      userCount: users.length,
+      rowCount: Math.max(0, lines.length - 1)
+    }
+  });
 
   return new Response("\uFEFF" + csv, {
     headers: {
