@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { CorrectionStatus, RequestStatus, RequestType } from "@prisma/client";
+import type { CorrectionStatus, LeaveRequestStatus, RequestStatus, RequestType } from "@prisma/client";
 
 const requestTypeLabels: Record<RequestType, string> = {
   ATTENDANCE_CORRECTION: "打刻修正",
@@ -40,6 +40,16 @@ const correctionStatusLabels: Record<CorrectionStatus, string> = {
   REJECTED: "却下"
 };
 
+const leaveRequestStatusLabels: Record<LeaveRequestStatus, string> = {
+  PENDING: "申請中",
+  APPROVED: "承認済み",
+  REJECTED: "却下"
+};
+
+function isSupportedLeaveApprovalType(requestType: RequestType) {
+  return ["PAID_LEAVE", "SUBSTITUTE_LEAVE"].includes(requestType);
+}
+
 function InfoItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-4">
@@ -65,6 +75,8 @@ export function AttendanceRequestApprovalActions({
   status,
   legacyCorrectionRequestId,
   legacyCorrectionStatus,
+  legacyLeaveRequestId,
+  legacyLeaveRequestStatus,
   canApproveByPermission,
   approvalPermissionReason
 }: {
@@ -72,6 +84,8 @@ export function AttendanceRequestApprovalActions({
   status: RequestStatus;
   legacyCorrectionRequestId: string;
   legacyCorrectionStatus: CorrectionStatus | null;
+  legacyLeaveRequestId: string;
+  legacyLeaveRequestStatus: LeaveRequestStatus | null;
   canApproveByPermission: boolean;
   approvalPermissionReason: string;
 }) {
@@ -81,14 +95,23 @@ export function AttendanceRequestApprovalActions({
   const [error, setError] = useState<string | null>(null);
 
   const isAttendanceCorrection = requestType === "ATTENDANCE_CORRECTION";
+  const isLeaveRequest = isSupportedLeaveApprovalType(requestType);
   const isPending = status === "PENDING";
   const legacyCorrectionStatusLabel = legacyCorrectionStatus ? correctionStatusLabels[legacyCorrectionStatus] ?? legacyCorrectionStatus : "-";
-  const statusMismatched = !!legacyCorrectionStatus && status !== legacyCorrectionStatus;
+  const legacyLeaveRequestStatusLabel = legacyLeaveRequestStatus ? leaveRequestStatusLabels[legacyLeaveRequestStatus] ?? legacyLeaveRequestStatus : "-";
+  const legacyRequestId = isAttendanceCorrection ? legacyCorrectionRequestId : legacyLeaveRequestId;
+  const legacyRequestStatus = isAttendanceCorrection ? legacyCorrectionStatus : legacyLeaveRequestStatus;
+  const legacyRequestStatusLabel = isAttendanceCorrection ? legacyCorrectionStatusLabel : legacyLeaveRequestStatusLabel;
+  const legacyRequestLabel = isAttendanceCorrection ? "既存打刻修正申請" : "休暇申請";
+  const endpoint = isAttendanceCorrection
+    ? `/api/admin/corrections/${legacyCorrectionRequestId}`
+    : `/api/admin/leaves/${legacyLeaveRequestId}`;
+  const statusMismatched = !!legacyRequestStatus && status !== legacyRequestStatus;
   const canOperate =
-    isAttendanceCorrection &&
+    (isAttendanceCorrection || isLeaveRequest) &&
     isPending &&
-    !!legacyCorrectionRequestId &&
-    legacyCorrectionStatus === "PENDING" &&
+    !!legacyRequestId &&
+    legacyRequestStatus === "PENDING" &&
     canApproveByPermission;
   const isLoading = loadingStatus !== null;
   const panelClassName = canOperate ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white";
@@ -100,7 +123,7 @@ export function AttendanceRequestApprovalActions({
     setError(null);
 
     try {
-      const response = await fetch(`/api/admin/corrections/${legacyCorrectionRequestId}`, {
+      const response = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
@@ -126,7 +149,7 @@ export function AttendanceRequestApprovalActions({
         <div>
           <h2 className="text-lg font-black text-slate-900">承認操作</h2>
           <p className="mt-1 text-sm font-bold text-slate-600">
-            打刻修正申請のみ、既存の打刻修正承認APIを使って承認・却下できます。
+            共通申請に紐づく既存申請APIを使って承認・却下できます。
           </p>
         </div>
         <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${statusClassNames[status]}`}>
@@ -136,9 +159,9 @@ export function AttendanceRequestApprovalActions({
 
       <div className="grid gap-3 md:grid-cols-4">
         <InfoItem label="共通申請ステータス" value={statusLabels[status] ?? status} />
-        <InfoItem label="既存打刻修正申請ステータス" value={legacyCorrectionStatusLabel} />
+        <InfoItem label={`${legacyRequestLabel}ステータス`} value={legacyRequestStatusLabel} />
         <InfoItem label="申請種別" value={requestTypeLabels[requestType] ?? requestType} />
-        <InfoItem label="既存申請ID" value={legacyCorrectionRequestId || "-"} mono />
+        <InfoItem label="既存申請ID" value={legacyRequestId || "-"} mono />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -164,18 +187,18 @@ export function AttendanceRequestApprovalActions({
       </div>
 
       <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-bold leading-6 text-slate-700">
-        {!isAttendanceCorrection && <p>この申請種別の共通承認UIはまだ未対応です。</p>}
-        {isAttendanceCorrection && !isPending && <p>この申請は処理済みです。</p>}
-        {isAttendanceCorrection && isPending && !legacyCorrectionRequestId && <p>既存申請IDがないため、この画面からは操作できません。</p>}
-        {isAttendanceCorrection && isPending && legacyCorrectionRequestId && !legacyCorrectionStatus && (
-          <p>対応する既存の打刻修正申請が見つかりません。この画面からは承認・却下できません。</p>
+        {!isAttendanceCorrection && !isLeaveRequest && <p>この申請種別の共通承認UIはまだ未対応です。</p>}
+        {(isAttendanceCorrection || isLeaveRequest) && !isPending && <p>この申請は処理済みです。</p>}
+        {(isAttendanceCorrection || isLeaveRequest) && isPending && !legacyRequestId && <p>既存申請IDがないため、この画面からは操作できません。</p>}
+        {(isAttendanceCorrection || isLeaveRequest) && isPending && legacyRequestId && !legacyRequestStatus && (
+          <p>対応する{legacyRequestLabel}が見つかりません。この画面からは承認・却下できません。</p>
         )}
         {statusMismatched && <p className="mt-2 text-amber-700">共通申請と既存申請のステータスが一致していません。既存申請側を正として確認してください。</p>}
-        {isAttendanceCorrection && isPending && legacyCorrectionStatus && legacyCorrectionStatus !== "PENDING" && (
+        {(isAttendanceCorrection || isLeaveRequest) && isPending && legacyRequestStatus && legacyRequestStatus !== "PENDING" && (
           <p>既存申請はすでに処理済みです。この画面からは承認・却下できません。</p>
         )}
         {!canApproveByPermission && <p className="mt-2 text-red-700">承認権限がありません：{approvalPermissionReason}</p>}
-        {canOperate && <p>この操作は既存の打刻修正申請APIを呼び出します。AttendanceRequestは既存API側のsoft同期で更新されます。</p>}
+        {canOperate && <p>この操作は{legacyRequestLabel}APIを呼び出します。AttendanceRequestは既存API側のsoft同期で更新されます。</p>}
       </div>
 
       {message && <p className="mt-3 rounded-2xl bg-green-50 p-3 text-sm font-black text-green-700">{message}</p>}

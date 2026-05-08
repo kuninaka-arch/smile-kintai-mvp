@@ -1,5 +1,6 @@
 import { CorrectionStatus } from "@prisma/client";
 import { logAction } from "@/lib/audit-log";
+import { createApprovalHistoryForDecision, resolveStepProgressDecision, type ApprovalDecision } from "@/lib/approval-engine";
 import { resolveApprovalPermission } from "@/lib/approval-permissions";
 import { apiError, requireAdmin, requireUnlockedDate } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
@@ -49,8 +50,21 @@ type ApprovalPermissionCheck = {
   denial?: {
     attendanceRequestId: string;
     reason: string;
+    currentStepOrder: number | null;
   };
 };
+
+class AttendanceRequestStateChangedError extends Error {
+  constructor() {
+    super("既に処理済み、または状態が変更されています。");
+  }
+}
+
+class DuplicateStepApprovalError extends Error {
+  constructor() {
+    super("このStepは既に承認済みです。");
+  }
+}
 
 async function resolveApprovalPermissionMeta({
   companyId,
@@ -154,7 +168,8 @@ async function resolveApprovalPermissionCheck({
         ? undefined
         : {
             attendanceRequestId: attendanceRequest.id,
-            reason: permission.reason
+            reason: permission.reason,
+            currentStepOrder: permission.currentStepOrder
           }
     };
   } catch (error) {
@@ -168,16 +183,112 @@ async function resolveApprovalPermissionCheck({
   }
 }
 
+async function advanceAttendanceRequestStep({
+  companyId,
+  attendanceRequestId,
+  actorUserId,
+  approvalDecision,
+  currentStepOrder,
+  nextStepOrder
+}: {
+  companyId: string;
+  attendanceRequestId: string;
+  actorUserId: string;
+  approvalDecision: ApprovalDecision;
+  currentStepOrder: number;
+  nextStepOrder: number;
+}) {
+  await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.attendanceRequest.updateMany({
+      where: {
+        id: attendanceRequestId,
+        companyId,
+        status: "PENDING",
+        currentStepOrder
+      },
+      data: { currentStepOrder: nextStepOrder }
+    });
+
+    if (updateResult.count !== 1) {
+      throw new AttendanceRequestStateChangedError();
+    }
+
+    await createApprovalHistoryForDecision({
+      companyId,
+      actorUserId,
+      decision: approvalDecision,
+      client: tx
+    });
+  });
+
+  return {
+    attendanceRequestSynced: true,
+    attendanceRequestId,
+    attendanceRequestFromStatus: "PENDING",
+    attendanceRequestToStatus: "PENDING",
+    attendanceRequestCurrentStepOrder: currentStepOrder,
+    attendanceRequestNextStepOrder: nextStepOrder
+  };
+}
+
+async function recordPendingStepApproval({
+  companyId,
+  attendanceRequestId,
+  actorUserId,
+  approvalDecision,
+  currentStepOrder
+}: {
+  companyId: string;
+  attendanceRequestId: string;
+  actorUserId: string;
+  approvalDecision: ApprovalDecision;
+  currentStepOrder: number;
+}) {
+  await prisma.$transaction(async (tx) => {
+    const existingApproval = await tx.approvalHistory.findFirst({
+      where: {
+        requestId: attendanceRequestId,
+        action: "APPROVE",
+        actorUserId,
+        stepOrder: currentStepOrder
+      },
+      select: { id: true }
+    });
+
+    if (existingApproval) {
+      throw new DuplicateStepApprovalError();
+    }
+
+    await createApprovalHistoryForDecision({
+      companyId,
+      actorUserId,
+      decision: approvalDecision,
+      client: tx
+    });
+  });
+
+  return {
+    attendanceRequestSynced: true,
+    attendanceRequestId,
+    attendanceRequestFromStatus: "PENDING",
+    attendanceRequestToStatus: "PENDING",
+    attendanceRequestCurrentStepOrder: currentStepOrder,
+    attendanceRequestNextStepOrder: currentStepOrder
+  };
+}
+
 async function syncAttendanceRequestStatus({
   companyId,
   correctionId,
   actorUserId,
-  status
+  status,
+  approvalDecision
 }: {
   companyId: string;
   correctionId: string;
   actorUserId: string;
   status: CorrectionStatus;
+  approvalDecision: ApprovalDecision;
 }): Promise<AttendanceRequestSyncMeta> {
   try {
     const attendanceRequest = await prisma.attendanceRequest.findFirst({
@@ -210,9 +321,6 @@ async function syncAttendanceRequestStatus({
     }
 
     const nextStatus = status === "APPROVED" ? "APPROVED" : "REJECTED";
-    const action = status === "APPROVED" ? "APPROVE" : "REJECT";
-    const comment = status === "APPROVED" ? "打刻修正申請を承認" : "打刻修正申請を却下";
-    const stepOrder = attendanceRequest.currentStepOrder ?? 1;
 
     await prisma.$transaction(async (tx) => {
       await tx.attendanceRequest.update({
@@ -223,17 +331,11 @@ async function syncAttendanceRequestStatus({
         }
       });
 
-      await tx.approvalHistory.create({
-        data: {
-          companyId,
-          requestId: attendanceRequest.id,
-          actorUserId,
-          action,
-          fromStatus: "PENDING",
-          toStatus: nextStatus,
-          stepOrder,
-          comment
-        }
+      await createApprovalHistoryForDecision({
+        companyId,
+        actorUserId,
+        decision: approvalDecision,
+        client: tx
       });
     });
 
@@ -279,8 +381,16 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     actorUserId: session.user.id
   });
   const approvalPermissionMeta = approvalPermissionCheck.meta;
+  const approvalDecision = await resolveStepProgressDecision({
+    companyId: session.user.companyId,
+    correctionId: request.id,
+    actorUserId: session.user.id,
+    requestedStatus: status
+  });
 
   if (approvalPermissionCheck.denial) {
+    const duplicateApproveDenied = approvalDecision.action === "DUPLICATE";
+
     await logAction({
       request: req,
       userId: session.user.id,
@@ -294,11 +404,124 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         requestedStatus: status,
         attendanceRequestId: approvalPermissionCheck.denial.attendanceRequestId,
         approvalPermissionCanApprove: false,
-        approvalPermissionReason: approvalPermissionCheck.denial.reason
+        approvalPermissionReason: approvalPermissionCheck.denial.reason,
+        ...(duplicateApproveDenied ? approvalDecision.auditMeta : {})
       }
     });
 
-    return apiError(`承認権限がありません。${approvalPermissionCheck.denial.reason}`, 403);
+    return apiError(
+      duplicateApproveDenied
+        ? approvalPermissionCheck.denial.reason
+        : `承認権限がありません。${approvalPermissionCheck.denial.reason}`,
+      duplicateApproveDenied ? 409 : 403
+    );
+  }
+
+  if (
+    approvalDecision.action === "UNSUPPORTED" &&
+    approvalDecision.attendanceRequestId &&
+    approvalDecision.currentStepOrder !== null
+  ) {
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "DENY_CORRECTION_APPROVAL_UNSUPPORTED",
+      targetType: "CORRECTION",
+      targetId: request.id,
+      before: request,
+      meta: {
+        correctionId: request.id,
+        requestedStatus: status,
+        ...approvalDecision.auditMeta
+      }
+    });
+
+    return apiError(approvalDecision.reason ?? "ALL_REQUIRED は現在 USER 承認者のみ対応しています。", 422);
+  }
+
+  if (
+    approvalDecision.action === "PENDING" &&
+    approvalDecision.attendanceRequestId &&
+    approvalDecision.currentStepOrder != null
+  ) {
+    let attendanceRequestSyncMeta;
+    try {
+      attendanceRequestSyncMeta = await recordPendingStepApproval({
+        companyId: session.user.companyId,
+        attendanceRequestId: approvalDecision.attendanceRequestId,
+        actorUserId: session.user.id,
+        approvalDecision,
+        currentStepOrder: approvalDecision.currentStepOrder
+      });
+    } catch (error) {
+      if (error instanceof DuplicateStepApprovalError) {
+        return apiError(error.message, 409);
+      }
+      throw error;
+    }
+
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "APPROVE_CORRECTION",
+      targetType: "CORRECTION",
+      targetId: request.id,
+      before: request,
+      after: request,
+      meta: {
+        status,
+        ...attendanceRequestSyncMeta,
+        ...approvalPermissionMeta,
+        ...approvalDecision.auditMeta
+      }
+    });
+
+    return Response.json({ ok: true });
+  }
+
+  if (
+    approvalDecision.action === "ADVANCE_STEP" &&
+    approvalDecision.attendanceRequestId &&
+    approvalDecision.currentStepOrder != null &&
+    approvalDecision.nextStepOrder != null
+  ) {
+    let attendanceRequestSyncMeta;
+    try {
+      attendanceRequestSyncMeta = await advanceAttendanceRequestStep({
+        companyId: session.user.companyId,
+        attendanceRequestId: approvalDecision.attendanceRequestId,
+        actorUserId: session.user.id,
+        approvalDecision,
+        currentStepOrder: approvalDecision.currentStepOrder,
+        nextStepOrder: approvalDecision.nextStepOrder
+      });
+    } catch (error) {
+      if (error instanceof AttendanceRequestStateChangedError) {
+        return apiError(error.message, 409);
+      }
+      throw error;
+    }
+
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "APPROVE_CORRECTION",
+      targetType: "CORRECTION",
+      targetId: request.id,
+      before: request,
+      after: request,
+      meta: {
+        status,
+        ...attendanceRequestSyncMeta,
+        ...approvalPermissionMeta,
+        ...approvalDecision.auditMeta
+      }
+    });
+
+    return Response.json({ ok: true });
   }
 
   const updated = await prisma.attendanceCorrectionRequest.update({
@@ -322,8 +545,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     companyId: session.user.companyId,
     correctionId: request.id,
     actorUserId: session.user.id,
-    status
+    status,
+    approvalDecision
   });
+
+  const approvalStepMeta = approvalDecision.auditMeta;
 
   await logAction({
     request: req,
@@ -334,7 +560,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     targetId: request.id,
     before: request,
     after: updated,
-    meta: { status, ...attendanceRequestSyncMeta, ...approvalPermissionMeta }
+    meta: { status, ...attendanceRequestSyncMeta, ...approvalPermissionMeta, ...approvalStepMeta }
   });
 
   return Response.json({ ok: true });

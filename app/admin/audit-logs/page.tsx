@@ -10,6 +10,7 @@ const actionLabels: Record<string, string> = {
   CREATE_CORRECTION: "打刻修正申請",
   APPROVE_CORRECTION: "打刻修正承認",
   REJECT_CORRECTION: "打刻修正却下",
+  DENY_CORRECTION_APPROVAL_PERMISSION: "打刻修正承認権限拒否",
   CREATE_LEAVE: "休暇申請",
   APPROVE_LEAVE: "休暇承認",
   REJECT_LEAVE: "休暇却下",
@@ -204,6 +205,46 @@ function ApprovalPermissionDiagnostics({ meta }: { meta: JsonObject | null }) {
         <div className="flex gap-2">
           <dt className="shrink-0 font-bold">判定実施:</dt>
           <dd>{booleanLabel(meta.approvalPermissionChecked)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">承認可能:</dt>
+          <dd>{booleanLabel(meta.approvalPermissionCanApprove)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">理由:</dt>
+          <dd>{textLabel(meta.approvalPermissionReason)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">一致承認者種別:</dt>
+          <dd>{textLabel(meta.approvalPermissionMatchedApproverType)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">承認条件:</dt>
+          <dd>{textLabel(meta.approvalPermissionRequirement)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function ApprovalPermissionDenial({ meta }: { meta: JsonObject | null }) {
+  if (!meta) return null;
+
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-950">
+      <p className="mb-2 font-black">承認権限拒否</p>
+      <dl className="grid gap-1">
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">対象打刻修正申請ID:</dt>
+          <dd className="font-mono">{textLabel(meta.correctionId)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">要求ステータス:</dt>
+          <dd>{textLabel(meta.requestedStatus)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="shrink-0 font-bold">共通申請ID:</dt>
+          <dd className="font-mono">{textLabel(meta.attendanceRequestId)}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="shrink-0 font-bold">承認可能:</dt>
@@ -425,6 +466,7 @@ export default async function AuditLogsPage({
                               詳細
                             </summary>
                             <div className="mt-3 grid gap-3 rounded-2xl bg-slate-50 p-3">
+                              {log.action === "DENY_CORRECTION_APPROVAL_PERMISSION" && <ApprovalPermissionDenial meta={approvalPermissionMeta} />}
                               <ApprovalPermissionDiagnostics meta={approvalPermissionMeta} />
                               <div>
                                 <p className="mb-1 text-xs font-black text-slate-500">beforeJson</p>
