@@ -44,6 +44,14 @@ type ApprovalPermissionMeta =
       approvalPermissionFailureReason: string;
     };
 
+type ApprovalPermissionCheck = {
+  meta: ApprovalPermissionMeta;
+  denial?: {
+    attendanceRequestId: string;
+    reason: string;
+  };
+};
+
 async function resolveApprovalPermissionMeta({
   companyId,
   correctionId,
@@ -92,6 +100,70 @@ async function resolveApprovalPermissionMeta({
       approvalPermissionChecked: false,
       approvalPermissionFailed: true,
       approvalPermissionFailureReason: error instanceof Error ? error.message : "承認権限判定に失敗しました。"
+    };
+  }
+}
+
+async function resolveApprovalPermissionCheck({
+  companyId,
+  correctionId,
+  actorUserId
+}: {
+  companyId: string;
+  correctionId: string;
+  actorUserId: string;
+}): Promise<ApprovalPermissionCheck> {
+  try {
+    const attendanceRequest = await prisma.attendanceRequest.findFirst({
+      where: {
+        companyId,
+        requestType: "ATTENDANCE_CORRECTION",
+        payloadJson: {
+          path: ["legacyCorrectionRequestId"],
+          equals: correctionId
+        }
+      },
+      select: { id: true }
+    });
+
+    if (!attendanceRequest) {
+      return {
+        meta: {
+          approvalPermissionChecked: false,
+          approvalPermissionSkipped: true,
+          approvalPermissionSkipReason: "対応するAttendanceRequestが見つかりません。"
+        }
+      };
+    }
+
+    const permission = await resolveApprovalPermission({
+      attendanceRequestId: attendanceRequest.id,
+      actorUserId,
+      companyId
+    });
+
+    return {
+      meta: {
+        approvalPermissionChecked: true,
+        approvalPermissionCanApprove: permission.canApprove,
+        approvalPermissionReason: permission.reason,
+        approvalPermissionMatchedApproverType: permission.matchedApprover?.approverType,
+        approvalPermissionRequirement: permission.requirement
+      },
+      denial: permission.canApprove
+        ? undefined
+        : {
+            attendanceRequestId: attendanceRequest.id,
+            reason: permission.reason
+          }
+    };
+  } catch (error) {
+    return {
+      meta: {
+        approvalPermissionChecked: false,
+        approvalPermissionFailed: true,
+        approvalPermissionFailureReason: error instanceof Error ? error.message : "承認権限判定に失敗しました。"
+      }
     };
   }
 }
@@ -201,11 +273,33 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const lockError = await requireUnlockedDate(session.user.companyId, request.targetDate, "打刻修正申請");
   if (lockError) return lockError;
 
-  const approvalPermissionMeta = await resolveApprovalPermissionMeta({
+  const approvalPermissionCheck = await resolveApprovalPermissionCheck({
     companyId: session.user.companyId,
     correctionId: request.id,
     actorUserId: session.user.id
   });
+  const approvalPermissionMeta = approvalPermissionCheck.meta;
+
+  if (approvalPermissionCheck.denial) {
+    await logAction({
+      request: req,
+      userId: session.user.id,
+      companyId: session.user.companyId,
+      action: "DENY_CORRECTION_APPROVAL_PERMISSION",
+      targetType: "CORRECTION",
+      targetId: request.id,
+      before: request,
+      meta: {
+        correctionId: request.id,
+        requestedStatus: status,
+        attendanceRequestId: approvalPermissionCheck.denial.attendanceRequestId,
+        approvalPermissionCanApprove: false,
+        approvalPermissionReason: approvalPermissionCheck.denial.reason
+      }
+    });
+
+    return apiError(`承認権限がありません。${approvalPermissionCheck.denial.reason}`, 403);
+  }
 
   const updated = await prisma.attendanceCorrectionRequest.update({
     where: { id: params.id },
