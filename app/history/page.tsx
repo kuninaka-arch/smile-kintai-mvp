@@ -50,7 +50,7 @@ export default async function HistoryPage({
   const months = availableMonths.includes(selectedYm) ? availableMonths : [selectedYm, ...availableMonths];
 
   const [monthSummaries, monthDetail] = await Promise.all([
-    Promise.all(months.map((ym) => loadMonthSummary(session.user.companyId, session.user.id, ym))),
+    loadMonthSummaries(session.user.companyId, session.user.id, months),
     loadMonthDetail(session.user.companyId, session.user.id, selectedYm)
   ]);
 
@@ -205,16 +205,66 @@ async function loadAvailableMonths(companyId: string, userId: string) {
   return rows.map((row) => row.ym).filter(Boolean);
 }
 
-async function loadMonthSummary(companyId: string, userId: string, ym: string) {
-  const detail = await loadMonthDetail(companyId, userId, ym);
-  return {
-    ym,
-    workDays: detail.days.filter((day) => day.clockIn).length,
-    workMinutes: detail.days.reduce((sum, day) => sum + day.workMinutes, 0),
-    breakMinutes: detail.days.reduce((sum, day) => sum + day.breakMinutes, 0),
-    pendingCount: detail.days.reduce((sum, day) => sum + day.pendingCount, 0),
-    approvedCount: detail.days.reduce((sum, day) => sum + day.approvedCount, 0)
-  };
+type MonthSummary = {
+  ym: string;
+  workDays: number;
+  workMinutes: number;
+  breakMinutes: number;
+  pendingCount: number;
+  approvedCount: number;
+};
+
+async function loadMonthSummaries(companyId: string, userId: string, months: string[]) {
+  if (months.length === 0) return [];
+
+  const sortedMonths = [...months].sort();
+  const { start } = monthRange(sortedMonths[0]);
+  const { end } = monthRange(sortedMonths[sortedMonths.length - 1]);
+  const monthSet = new Set(months);
+  const summaries = new Map(months.map((ym) => [ym, createMonthSummary(ym)]));
+
+  const [logs, attendanceRequests, correctionRequests, leaveRequests] = await Promise.all([
+    prisma.attendanceLog.findMany({
+      where: { companyId, userId, stampedAt: { gte: start, lt: end } },
+      select: { type: true, stampedAt: true },
+      orderBy: { stampedAt: "asc" }
+    }),
+    prisma.attendanceRequest.findMany({
+      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      select: { status: true, targetDate: true }
+    }),
+    prisma.attendanceCorrectionRequest.findMany({
+      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      select: { status: true, targetDate: true }
+    }),
+    prisma.leaveRequest.findMany({
+      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      select: { status: true, targetDate: true }
+    })
+  ]);
+
+  const logsByMonthDate = new Map<string, { type: string; stampedAt: Date }[]>();
+  for (const log of logs) {
+    const ym = toJaMonthKey(log.stampedAt);
+    if (!monthSet.has(ym)) continue;
+    const key = `${ym}:${toJaDateKey(log.stampedAt)}`;
+    logsByMonthDate.set(key, [...(logsByMonthDate.get(key) ?? []), log]);
+  }
+
+  for (const [key, dayLogs] of Array.from(logsByMonthDate.entries())) {
+    const ym = key.slice(0, 7);
+    const summary = summaries.get(ym);
+    if (!summary) continue;
+    if (dayLogs.some((log) => log.type === "CLOCK_IN")) summary.workDays += 1;
+    summary.workMinutes += calcWorkMinutes(dayLogs);
+    summary.breakMinutes += calcBreakMinutes(dayLogs);
+  }
+
+  for (const request of attendanceRequests) addStatusCount(summaries, request.targetDate, request.status);
+  for (const request of correctionRequests) addStatusCount(summaries, request.targetDate, request.status);
+  for (const request of leaveRequests) addStatusCount(summaries, request.targetDate, request.status);
+
+  return months.map((ym) => summaries.get(ym) ?? createMonthSummary(ym));
 }
 
 async function loadMonthDetail(companyId: string, userId: string, ym: string) {
@@ -222,11 +272,16 @@ async function loadMonthDetail(companyId: string, userId: string, ym: string) {
   const [logs, shifts, attendanceRequests, correctionRequests, leaveRequests] = await Promise.all([
     prisma.attendanceLog.findMany({
       where: { companyId, userId, stampedAt: { gte: start, lt: end } },
+      select: { id: true, type: true, stampedAt: true, latitude: true },
       orderBy: { stampedAt: "asc" }
     }),
     prisma.shift.findMany({
       where: { companyId, userId, workDate: { gte: start, lt: end } },
-      include: {
+      select: {
+        workDate: true,
+        startTime: true,
+        endTime: true,
+        patternCode: true,
         workPattern: {
           select: {
             name: true,
@@ -244,11 +299,12 @@ async function loadMonthDetail(companyId: string, userId: string, ym: string) {
     }),
     prisma.attendanceCorrectionRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      select: { id: true, status: true, targetDate: true },
       orderBy: { createdAt: "desc" }
     }),
     prisma.leaveRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
-      include: { leaveType: { select: { name: true } } },
+      select: { id: true, status: true, targetDate: true, leaveType: { select: { name: true } } },
       orderBy: { createdAt: "desc" }
     })
   ]);
@@ -320,6 +376,25 @@ function groupByDate<T>(items: T[], getKey: (item: T) => string) {
   return map;
 }
 
+function createMonthSummary(ym: string): MonthSummary {
+  return {
+    ym,
+    workDays: 0,
+    workMinutes: 0,
+    breakMinutes: 0,
+    pendingCount: 0,
+    approvedCount: 0
+  };
+}
+
+function addStatusCount(summaries: Map<string, MonthSummary>, targetDate: Date | null, status: string) {
+  if (!targetDate) return;
+  const summary = summaries.get(toJaMonthKey(targetDate));
+  if (!summary) return;
+  if (status === "PENDING") summary.pendingCount += 1;
+  if (status === "APPROVED") summary.approvedCount += 1;
+}
+
 function calcBreakMinutes(logs: { type: string; stampedAt: Date }[]) {
   let breakMinutes = 0;
   let breakStart: Date | null = null;
@@ -363,11 +438,15 @@ function normalizeYm(value: string | undefined) {
 }
 
 function currentTokyoMonth() {
+  return toJaMonthKey(new Date());
+}
+
+function toJaMonthKey(date: Date) {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit"
-  }).format(new Date());
+  }).format(date);
 }
 
 function monthRange(ym: string) {
