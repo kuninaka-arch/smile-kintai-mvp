@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { Prisma } from "@prisma/client";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { requireAdmin } from "@/components/RequireAuth";
@@ -424,9 +425,9 @@ export default async function AuditLogsPage({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[1180px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">操作日時</th>
                     <th className="p-4">操作者</th>
@@ -443,7 +444,8 @@ export default async function AuditLogsPage({
                     const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
                     const approvalPermissionMeta = approvalPermissionMetaFromAfterJson(log.afterJson);
                     return (
-                      <tr key={log.id} className="border-t align-top hover:bg-slate-50">
+                      <Fragment key={log.id}>
+                        <tr className="border-t align-top hover:bg-slate-50">
                         <td className="p-4 font-bold text-slate-900">{formatDateTime(log.createdAt)}</td>
                         <td className="p-4">
                           <p className="font-black text-slate-900">{actor?.name ?? "不明"}</p>
@@ -460,30 +462,41 @@ export default async function AuditLogsPage({
                         <td className="max-w-[260px] truncate p-4 text-xs text-slate-500" title={log.userAgent ?? ""}>
                           {log.userAgent ?? "-"}
                         </td>
-                        <td className="p-4">
-                          <details className="group">
-                            <summary className="cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-center text-xs font-black text-white">
+                          <td className="p-4">
+                            <a
+                              href={`#audit-log-detail-${log.id}`}
+                              className="inline-flex rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700"
+                            >
                               詳細
-                            </summary>
-                            <div className="mt-3 grid gap-3 rounded-2xl bg-slate-50 p-3">
-                              {log.action === "DENY_CORRECTION_APPROVAL_PERMISSION" && <ApprovalPermissionDenial meta={approvalPermissionMeta} />}
-                              <ApprovalPermissionDiagnostics meta={approvalPermissionMeta} />
-                              <div>
-                                <p className="mb-1 text-xs font-black text-slate-500">beforeJson</p>
-                                <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(log.beforeJson)}</pre>
+                            </a>
+                          </td>
+                        </tr>
+                        <tr id={`audit-log-detail-${log.id}`} className="border-t bg-slate-50">
+                          <td colSpan={8} className="p-4">
+                            <details className="group">
+                              <summary className="inline-flex cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-center text-xs font-black text-white">
+                                詳細
+                              </summary>
+                              <div className="mt-3 grid gap-3 rounded-2xl border bg-slate-50 p-3">
+                                {log.action === "DENY_CORRECTION_APPROVAL_PERMISSION" && <ApprovalPermissionDenial meta={approvalPermissionMeta} />}
+                                <ApprovalPermissionDiagnostics meta={approvalPermissionMeta} />
+                                <div>
+                                  <p className="mb-1 text-xs font-black text-slate-500">beforeJson</p>
+                                  <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(log.beforeJson)}</pre>
+                                </div>
+                                <div>
+                                  <p className="mb-1 text-xs font-black text-slate-500">afterJson</p>
+                                  <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(log.afterJson)}</pre>
+                                </div>
+                                <div className="grid gap-2 text-xs font-bold text-slate-600 md:grid-cols-2">
+                                  <p>IPアドレス: {log.ipAddress ?? "-"}</p>
+                                  <p>user agent: {log.userAgent ?? "-"}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="mb-1 text-xs font-black text-slate-500">afterJson</p>
-                                <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(log.afterJson)}</pre>
-                              </div>
-                              <div className="grid gap-2 text-xs font-bold text-slate-600 md:grid-cols-2">
-                                <p>IPアドレス: {log.ipAddress ?? "-"}</p>
-                                <p>user agent: {log.userAgent ?? "-"}</p>
-                              </div>
-                            </div>
-                          </details>
-                        </td>
-                      </tr>
+                            </details>
+                          </td>
+                        </tr>
+                      </Fragment>
                     );
                   })}
 
