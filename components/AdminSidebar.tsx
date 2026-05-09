@@ -76,6 +76,7 @@ const careItems: MenuItem[] = [
   { href: "/admin/employees", label: "社員管理", key: "employees", icon: "users" },
   { href: "/admin/approval-routes", label: "承認ルート管理", key: "approval-routes", icon: "shield" },
   { href: "/admin/attendance-requests", label: "共通申請一覧", key: "attendance-requests", icon: "shield" },
+  { href: "/admin/corrections", label: "打刻修正", key: "corrections", icon: "edit" },
   { href: "/admin/permissions", label: "権限管理", key: "permissions", icon: "shield" },
   { href: "/admin/masters", label: "設定", key: "masters", icon: "shield" },
   { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }
@@ -91,9 +92,9 @@ const normalMenuSections: { title: string; items: MenuItem[] }[] = [
 const careMenuSections: { title: string; items: MenuItem[] }[] = [
   { title: "介護業務", items: careItems.slice(0, 4) },
   { title: "介護レポート", items: careItems.slice(4, 11) },
-  { title: "共通管理", items: careItems.slice(11, 17) },
-  { title: "設定", items: careItems.slice(17, 18) },
-  { title: "打刻", items: careItems.slice(18) }
+  { title: "共通管理", items: careItems.slice(11, 18) },
+  { title: "設定", items: careItems.slice(18, 19) },
+  { title: "打刻", items: careItems.slice(19) }
 ];
 
 function MenuIcon({ name }: { name: IconName }) {

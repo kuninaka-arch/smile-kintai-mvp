@@ -4,7 +4,7 @@ import { AdminSidebar } from "@/components/AdminSidebar";
 import { requireAdmin } from "@/components/RequireAuth";
 import { prisma } from "@/lib/prisma";
 
-const pageSize = 50;
+const pageSize = 20;
 
 const actionLabels: Record<string, string> = {
   CREATE_CORRECTION: "打刻修正申請",
