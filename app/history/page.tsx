@@ -44,15 +44,37 @@ export default async function HistoryPage({
 }: {
   searchParams?: { ym?: string };
 }) {
+  const totalStart = Date.now();
+  console.log("[PERF][history] total:start");
+
+  const authStart = Date.now();
   const session = await requireAuth();
+  console.log("[PERF][history] auth-session", Date.now() - authStart, "ms");
+
+  const availableMonthsStart = Date.now();
   const availableMonths = await loadAvailableMonths(session.user.companyId, session.user.id);
+  console.log("[PERF][history] load-available-months", Date.now() - availableMonthsStart, "ms");
+
+  const renderPrepStart = Date.now();
   const selectedYm = normalizeYm(searchParams?.ym) ?? currentTokyoMonth();
   const months = availableMonths.includes(selectedYm) ? availableMonths : [selectedYm, ...availableMonths];
+  console.log("[PERF][history] render-prep", Date.now() - renderPrepStart, "ms");
 
+  const summariesStart = Date.now();
+  const summariesPromise = loadMonthSummaries(session.user.companyId, session.user.id, months).then((result) => {
+    console.log("[PERF][history] load-month-summaries", Date.now() - summariesStart, "ms");
+    return result;
+  });
+  const detailStart = Date.now();
+  const detailPromise = loadMonthDetail(session.user.companyId, session.user.id, selectedYm).then((result) => {
+    console.log("[PERF][history] load-month-detail", Date.now() - detailStart, "ms");
+    return result;
+  });
   const [monthSummaries, monthDetail] = await Promise.all([
-    loadMonthSummaries(session.user.companyId, session.user.id, months),
-    loadMonthDetail(session.user.companyId, session.user.id, selectedYm)
+    summariesPromise,
+    detailPromise
   ]);
+  console.log("[PERF][history] total", Date.now() - totalStart, "ms");
 
   return (
     <>
