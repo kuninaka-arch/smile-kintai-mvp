@@ -245,26 +245,43 @@ async function loadMonthSummaries(companyId: string, userId: string, months: str
   const monthSet = new Set(months);
   const summaries = new Map(months.map((ym) => [ym, createMonthSummary(ym)]));
 
+  const summaryLogsStart = Date.now();
+  const summaryAttendanceRequestsStart = Date.now();
+  const summaryCorrectionRequestsStart = Date.now();
+  const summaryLeaveRequestsStart = Date.now();
   const [logs, attendanceRequests, correctionRequests, leaveRequests] = await Promise.all([
     prisma.attendanceLog.findMany({
       where: { companyId, userId, stampedAt: { gte: start, lt: end } },
       select: { type: true, stampedAt: true },
       orderBy: { stampedAt: "asc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-summary-attendance-logs", Date.now() - summaryLogsStart, "ms");
+      return result;
     }),
     prisma.attendanceRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { status: true, targetDate: true }
+    }).then((result) => {
+      console.log("[PERF][history] history-summary-attendance-requests", Date.now() - summaryAttendanceRequestsStart, "ms");
+      return result;
     }),
     prisma.attendanceCorrectionRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { status: true, targetDate: true }
+    }).then((result) => {
+      console.log("[PERF][history] history-summary-correction-requests", Date.now() - summaryCorrectionRequestsStart, "ms");
+      return result;
     }),
     prisma.leaveRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { status: true, targetDate: true }
+    }).then((result) => {
+      console.log("[PERF][history] history-summary-leave-requests", Date.now() - summaryLeaveRequestsStart, "ms");
+      return result;
     })
   ]);
 
+  const summaryAggregateStart = Date.now();
   const logsByMonthDate = new Map<string, { type: string; stampedAt: Date }[]>();
   for (const log of logs) {
     const ym = toJaMonthKey(log.stampedAt);
@@ -285,17 +302,26 @@ async function loadMonthSummaries(companyId: string, userId: string, months: str
   for (const request of attendanceRequests) addStatusCount(summaries, request.targetDate, request.status);
   for (const request of correctionRequests) addStatusCount(summaries, request.targetDate, request.status);
   for (const request of leaveRequests) addStatusCount(summaries, request.targetDate, request.status);
+  console.log("[PERF][history] history-summary-aggregate", Date.now() - summaryAggregateStart, "ms");
 
   return months.map((ym) => summaries.get(ym) ?? createMonthSummary(ym));
 }
 
 async function loadMonthDetail(companyId: string, userId: string, ym: string) {
   const { start, end, dates } = monthRange(ym);
+  const detailLogsStart = Date.now();
+  const detailShiftsStart = Date.now();
+  const detailAttendanceRequestsStart = Date.now();
+  const detailCorrectionRequestsStart = Date.now();
+  const detailLeaveRequestsStart = Date.now();
   const [logs, shifts, attendanceRequests, correctionRequests, leaveRequests] = await Promise.all([
     prisma.attendanceLog.findMany({
       where: { companyId, userId, stampedAt: { gte: start, lt: end } },
       select: { id: true, type: true, stampedAt: true, latitude: true },
       orderBy: { stampedAt: "asc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-detail-attendance-logs", Date.now() - detailLogsStart, "ms");
+      return result;
     }),
     prisma.shift.findMany({
       where: { companyId, userId, workDate: { gte: start, lt: end } },
@@ -313,24 +339,37 @@ async function loadMonthDetail(companyId: string, userId: string, ym: string) {
         }
       },
       orderBy: { workDate: "desc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-detail-shifts", Date.now() - detailShiftsStart, "ms");
+      return result;
     }),
     prisma.attendanceRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { id: true, requestType: true, status: true, targetDate: true, title: true },
       orderBy: { createdAt: "desc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-detail-attendance-requests", Date.now() - detailAttendanceRequestsStart, "ms");
+      return result;
     }),
     prisma.attendanceCorrectionRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { id: true, status: true, targetDate: true },
       orderBy: { createdAt: "desc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-detail-correction-requests", Date.now() - detailCorrectionRequestsStart, "ms");
+      return result;
     }),
     prisma.leaveRequest.findMany({
       where: { companyId, userId, targetDate: { gte: start, lt: end } },
       select: { id: true, status: true, targetDate: true, leaveType: { select: { name: true } } },
       orderBy: { createdAt: "desc" }
+    }).then((result) => {
+      console.log("[PERF][history] history-detail-leave-requests", Date.now() - detailLeaveRequestsStart, "ms");
+      return result;
     })
   ]);
 
+  const detailAggregateStart = Date.now();
   const logsByDate = groupByDate(logs, (log) => toJaDateKey(log.stampedAt));
   const shiftByDate = new Map(shifts.map((shift) => [toJaDateKey(shift.workDate), shift]));
   const requestsByDate = groupByDate(attendanceRequests, (request) => (request.targetDate ? toJaDateKey(request.targetDate) : ""));
@@ -374,6 +413,7 @@ async function loadMonthDetail(companyId: string, userId: string, ym: string) {
     };
   });
 
+  console.log("[PERF][history] history-detail-aggregate", Date.now() - detailAggregateStart, "ms");
   return { days };
 }
 
