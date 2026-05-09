@@ -1,11 +1,22 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/components/RequireAuth";
 import { formatJaDate, formatJaTime, typeLabel } from "@/lib/attendance";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { isCareCompany } from "@/lib/industry";
 
 export default async function AdminDashboard({ searchParams }: { searchParams: { department?: string } }) {
   const session = await requireAdmin();
+  const company = await prisma.company
+    .findUnique({
+      where: { id: session.user.companyId },
+      select: { industryType: true }
+    })
+    .catch(() => null);
+
+  if (isCareCompany(company?.industryType)) redirect("/admin/care");
+
   const selectedDepartment = searchParams.department ?? "all";
 
   const todayStart = new Date();
