@@ -31,9 +31,9 @@ export default async function MasterPage() {
 
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b p-5"><h2 className="text-lg font-black">登録一覧</h2></div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[760px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">コード</th>
                     <th className="p-4">名称</th>
