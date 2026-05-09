@@ -83,9 +83,9 @@ export default async function AdminAiHelpPage() {
               <h2 className="text-lg font-black text-slate-900">問い合わせ履歴</h2>
               <p className="text-sm text-slate-500">直近20件を表示しています。</p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">日時</th>
                     <th className="p-4">ユーザー</th>

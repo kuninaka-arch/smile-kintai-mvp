@@ -66,9 +66,9 @@ export default async function CareReportExportsPage() {
               <p className="text-sm text-slate-500">直近200件を表示しています。</p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[920px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">出力日時</th>
                     <th className="p-4">出力ユーザー</th>
