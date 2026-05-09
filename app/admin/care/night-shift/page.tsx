@@ -155,9 +155,9 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
               <h2 className="text-lg font-black text-slate-900">月別 夜勤体制</h2>
               <p className="text-sm text-slate-500">勤務パターンの区分が「夜勤」のシフトを集計しています。</p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">日付</th>
                     <th className="p-4">曜日</th>
@@ -205,9 +205,9 @@ export default async function CareNightShiftPage({ searchParams }: { searchParam
               <h2 className="text-lg font-black text-slate-900">スタッフ別 夜勤回数</h2>
               <p className="text-sm text-slate-500">対象月に夜勤シフトが入っているスタッフを回数順に表示します。</p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">スタッフ名</th>
                     <th className="p-4">所属</th>

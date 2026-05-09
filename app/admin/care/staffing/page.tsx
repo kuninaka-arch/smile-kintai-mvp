@@ -153,9 +153,9 @@ export default async function CareStaffingPage({ searchParams }: { searchParams:
           )}
 
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[1080px] border-collapse text-sm">
-                <thead className="bg-slate-50 text-slate-600">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 shadow-sm">
                   <tr>
                     <th className="border-b px-4 py-3 text-left font-black">日付</th>
                     {targetCategories.map((item) => (
