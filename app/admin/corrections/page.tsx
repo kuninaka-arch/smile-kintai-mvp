@@ -26,9 +26,9 @@ export default async function AdminCorrectionsPage() {
 
         <div className="mx-auto max-w-7xl px-5 py-6">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[920px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs text-slate-500">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                 <tr>
                   <th className="p-4">社員</th>
                   <th className="p-4">対象日</th>

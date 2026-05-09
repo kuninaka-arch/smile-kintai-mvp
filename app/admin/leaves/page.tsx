@@ -39,9 +39,9 @@ export default async function AdminLeavesPage() {
         <div className="mx-auto max-w-7xl px-5 py-6">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <p className="border-b px-5 py-3 text-xs font-bold text-slate-400">横にスクロールできます</p>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[1040px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">社員</th>
                     <th className="p-4">所属</th>
