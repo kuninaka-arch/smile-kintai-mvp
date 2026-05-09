@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { Prisma, RequestStatus, RequestType } from "@prisma/client";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { requireAdmin } from "@/components/RequireAuth";
@@ -229,9 +230,9 @@ export default async function AttendanceRequestsPage({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[1300px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">申請日時</th>
                     <th className="p-4">申請者</th>
@@ -253,7 +254,8 @@ export default async function AttendanceRequestsPage({
                     const departmentName = request.user.departmentMaster?.name ?? request.user.department ?? "-";
 
                     return (
-                      <tr key={request.id} className="border-t align-top hover:bg-slate-50">
+                      <Fragment key={request.id}>
+                        <tr className="border-t align-top hover:bg-slate-50">
                         <td className="p-4 font-bold text-slate-900">{formatDateTime(request.submittedAt ?? request.createdAt)}</td>
                         <td className="p-4">
                           <p className="font-black text-slate-900">{request.user.name}</p>
@@ -273,18 +275,30 @@ export default async function AttendanceRequestsPage({
                         <td className="max-w-[190px] truncate p-4 font-mono text-xs text-slate-600" title={legacyCorrectionRequestId}>
                           {legacyCorrectionRequestId || "-"}
                         </td>
-                        <td className="p-4">
-                          <Link
-                            href={`/admin/attendance-requests/${request.id}`}
-                            className="mb-2 inline-flex rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700"
-                          >
-                            詳細ページ
-                          </Link>
-                          <details className="group">
-                            <summary className="cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-center text-xs font-black text-white">
-                              詳細
-                            </summary>
-                            <div className="mt-3 grid min-w-[520px] gap-4 rounded-2xl bg-slate-50 p-4">
+                          <td className="p-4">
+                            <div className="flex flex-col gap-2">
+                              <Link
+                                href={`/admin/attendance-requests/${request.id}`}
+                                className="inline-flex rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700"
+                              >
+                                詳細ページ
+                              </Link>
+                              <a
+                                href={`#attendance-request-detail-${request.id}`}
+                                className="inline-flex rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700"
+                              >
+                                詳細
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr id={`attendance-request-detail-${request.id}`} className="border-t bg-slate-50">
+                          <td colSpan={11} className="p-4">
+                            <details className="group">
+                              <summary className="inline-flex cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-center text-xs font-black text-white">
+                                詳細
+                              </summary>
+                              <div className="mt-3 grid min-w-[520px] gap-4 rounded-2xl border bg-slate-50 p-4">
                               <div>
                                 <p className="mb-2 text-xs font-black text-slate-500">payload概要</p>
                                 <dl className="grid gap-2 text-xs font-bold text-slate-700 md:grid-cols-2">
@@ -349,9 +363,10 @@ export default async function AttendanceRequestsPage({
                                 <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{prettyJson(request.payloadJson)}</pre>
                               </div>
                             </div>
-                          </details>
-                        </td>
-                      </tr>
+                            </details>
+                          </td>
+                        </tr>
+                      </Fragment>
                     );
                   })}
 
