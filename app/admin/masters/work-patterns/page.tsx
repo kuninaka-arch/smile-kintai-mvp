@@ -45,9 +45,9 @@ export default async function WorkPatternsPage() {
                 {showCareFields ? "介護施設モードでは、勤務区分と夜勤・休暇判定用の項目を編集できます。" : "登録したパターンが月間シフト表に表示されます。"}
               </p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-sm">
                   <tr>
                     <th className="p-4">表示</th>
                     <th className="p-4">コード</th>
