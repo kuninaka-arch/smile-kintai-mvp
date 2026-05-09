@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
+import { AdminSidebarBehavior } from "@/components/AdminSidebarBehavior";
 import { SignOutButton } from "@/components/SignOutButton";
 import { authOptions } from "@/lib/auth";
 import { isCareCompany } from "@/lib/industry";
@@ -29,6 +30,12 @@ type MenuItem = {
   label: string;
   key: string;
   icon: IconName;
+};
+
+type MenuSection = {
+  title: string;
+  items: MenuItem[];
+  alwaysOpen?: boolean;
 };
 
 const mainItems: MenuItem[] = [
@@ -82,19 +89,19 @@ const careItems: MenuItem[] = [
   { href: "/home", label: "打刻画面へ", key: "home", icon: "punch" }
 ];
 
-const normalMenuSections: { title: string; items: MenuItem[] }[] = [
+const normalMenuSections: MenuSection[] = [
   { title: "勤怠管理", items: mainItems.slice(0, 9) },
   { title: "申請・承認", items: mainItems.slice(9, 12) },
   { title: "システム", items: mainItems.slice(12) },
   { title: "マスタ", items: masterItems }
 ];
 
-const careMenuSections: { title: string; items: MenuItem[] }[] = [
-  { title: "介護業務", items: careItems.slice(0, 4) },
+const careMenuSections: MenuSection[] = [
+  { title: "介護業務", items: careItems.slice(0, 4), alwaysOpen: true },
   { title: "介護レポート", items: careItems.slice(4, 11) },
   { title: "共通管理", items: careItems.slice(11, 18) },
   { title: "設定", items: careItems.slice(18, 19) },
-  { title: "打刻", items: careItems.slice(19) }
+  { title: "打刻", items: careItems.slice(19), alwaysOpen: true }
 ];
 
 function MenuIcon({ name }: { name: IconName }) {
@@ -253,8 +260,9 @@ export async function AdminSidebar({ active }: { active: string }) {
 
     return (
       <Link
-        key={key}
+        key={`${key}:${href}`}
         href={href}
+        data-admin-menu-active={isActive ? "true" : undefined}
         className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-2.5 text-sm font-black transition ${
           isActive
             ? "bg-gradient-to-r from-blue-600/95 via-blue-500/80 to-cyan-500/60 text-white shadow-lg shadow-blue-950/30 ring-1 ring-white/15"
@@ -274,6 +282,38 @@ export async function AdminSidebar({ active }: { active: string }) {
     );
   };
 
+  const renderSection = (section: MenuSection, tone: "care" | "normal") => {
+    const hasActiveItem = section.items.some((menuItem) => menuItem.key === active);
+    const titleClassName =
+      tone === "care"
+        ? "px-3 text-[11px] font-black tracking-wider text-emerald-300/80"
+        : "px-3 text-[11px] font-black tracking-wider text-slate-500";
+
+    if (section.alwaysOpen) {
+      return (
+        <div key={section.title}>
+          <div className={`mb-2 ${titleClassName}`}>{section.title}</div>
+          <div className="space-y-1">{section.items.map((menuItem) => item(menuItem))}</div>
+        </div>
+      );
+    }
+
+    return (
+      <details
+        key={section.title}
+        data-admin-sidebar-section={`${tone}:${section.title}`}
+        open={hasActiveItem}
+        className="group"
+      >
+        <summary className={`mb-2 flex cursor-pointer list-none items-center justify-between rounded-xl px-3 py-1.5 text-[11px] font-black tracking-wider transition hover:bg-white/5 ${tone === "care" ? "text-emerald-300/80" : "text-slate-500"}`}>
+          <span>{section.title}</span>
+          <span className="text-xs text-slate-500 transition group-open:rotate-90">›</span>
+        </summary>
+        <div className="space-y-1">{section.items.map((menuItem) => item(menuItem))}</div>
+      </details>
+    );
+  };
+
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-64 overflow-hidden bg-slate-950 text-white lg:block">
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-br from-blue-600/35 via-cyan-400/10 to-transparent" />
@@ -290,24 +330,15 @@ export async function AdminSidebar({ active }: { active: string }) {
           </Link>
         </div>
 
-        <nav className="relative flex-1 space-y-5 overflow-y-auto p-4">
+        <AdminSidebarBehavior />
+        <nav data-admin-menu-nav className="relative flex-1 space-y-5 overflow-y-auto p-4">
           {showCareMenu ? (
             <>
-              {careMenuSections.map((section) => (
-                <div key={section.title}>
-                  <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-emerald-300/80">{section.title}</div>
-                  <div className="space-y-1">{section.items.map((menuItem) => item(menuItem))}</div>
-                </div>
-              ))}
+              {careMenuSections.map((section) => renderSection(section, "care"))}
             </>
           ) : (
             <>
-              {normalMenuSections.map((section) => (
-                <div key={section.title}>
-                  <div className="mb-2 px-3 text-[11px] font-black tracking-wider text-slate-500">{section.title}</div>
-                  <div className="space-y-1">{section.items.map((menuItem) => item(menuItem))}</div>
-                </div>
-              ))}
+              {normalMenuSections.map((section) => renderSection(section, "normal"))}
             </>
           )}
         </nav>
