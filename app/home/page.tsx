@@ -36,8 +36,18 @@ export default async function HomePage() {
   });
 
   const shift = await prisma.shift.findFirst({
-    where: { companyId: session.user.companyId, userId: session.user.id, workDate: todayStart }
+    where: { companyId: session.user.companyId, userId: session.user.id, workDate: todayStart },
+    include: {
+      workPattern: {
+        select: {
+          name: true,
+          category: true,
+          isHoliday: true
+        }
+      }
+    }
   });
+  const todayShiftText = formatTodayShift(shift);
 
   const latest = logs[logs.length - 1];
   const status =
@@ -68,8 +78,8 @@ export default async function HomePage() {
             <h1 className="mt-1 text-3xl font-black">{session.user.name}さん</h1>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-2xl bg-white/15 p-3">
-                <p className="opacity-80">本日勤務</p>
-                <p className="font-bold">{shift ? `${shift.startTime}〜${shift.endTime}` : "未登録"}</p>
+                <p className="opacity-80">本日のシフト</p>
+                <p className="font-bold">{todayShiftText}</p>
               </div>
               <div className="rounded-2xl bg-white/15 p-3">
                 <p className="opacity-80">現在の状態</p>
@@ -127,6 +137,21 @@ export default async function HomePage() {
       <BottomNav isAdmin={session.user.role === "ADMIN"} />
     </main>
   );
+}
+
+function formatTodayShift(
+  shift: {
+    startTime: string;
+    endTime: string;
+    patternCode: string | null;
+    workPattern: { name: string; category: string; isHoliday: boolean } | null;
+  } | null
+) {
+  if (!shift) return "未設定";
+  if (shift.workPattern?.isHoliday || shift.workPattern?.category === "OFF") return "休み";
+
+  const label = shift.workPattern?.name ?? shift.patternCode ?? "シフト";
+  return `${label} ${shift.startTime}〜${shift.endTime}`;
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {
