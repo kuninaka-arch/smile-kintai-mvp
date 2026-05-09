@@ -46,7 +46,7 @@ export default async function HistoryPage({
 }) {
   const session = await requireAuth();
   const availableMonths = await loadAvailableMonths(session.user.companyId, session.user.id);
-  const selectedYm = normalizeYm(searchParams?.ym) ?? availableMonths[0] ?? currentTokyoMonth();
+  const selectedYm = normalizeYm(searchParams?.ym) ?? currentTokyoMonth();
   const months = availableMonths.includes(selectedYm) ? availableMonths : [selectedYm, ...availableMonths];
 
   const [monthSummaries, monthDetail] = await Promise.all([
