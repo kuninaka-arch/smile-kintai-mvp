@@ -16,6 +16,19 @@ function statusClass(status: string) {
   return "bg-orange-50 text-orange-700";
 }
 
+function tokyoDateRange(date: Date) {
+  const key = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+  const start = new Date(`${key}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+
 export default async function AdminLeavesPage() {
   const session = await requireAdmin();
 
@@ -24,6 +37,26 @@ export default async function AdminLeavesPage() {
     include: { user: true, leaveType: true },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }]
   });
+  const existingShiftRequestIds = new Set(
+    (
+      await Promise.all(
+        requests
+          .filter((request) => request.status === "PENDING" && request.unit === "FULL_DAY")
+          .map(async (request) => {
+            const { start, end } = tokyoDateRange(request.targetDate);
+            const shift = await prisma.shift.findFirst({
+              where: {
+                companyId: session.user.companyId,
+                userId: request.userId,
+                workDate: { gte: start, lt: end }
+              },
+              select: { id: true }
+            });
+            return shift ? request.id : null;
+          })
+      )
+    ).filter((id): id is string => Boolean(id))
+  );
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -68,7 +101,11 @@ export default async function AdminLeavesPage() {
                         </span>
                       </td>
                       <td className="p-4">
-                        <LeaveActionButtons id={request.id} disabled={request.status !== "PENDING"} />
+                        <LeaveActionButtons
+                          id={request.id}
+                          disabled={request.status !== "PENDING"}
+                          hasExistingShift={existingShiftRequestIds.has(request.id)}
+                        />
                       </td>
                     </tr>
                   ))}

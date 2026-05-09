@@ -3,16 +3,31 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function LeaveActionButtons({ id, disabled }: { id: string; disabled: boolean }) {
+export function LeaveActionButtons({
+  id,
+  disabled,
+  hasExistingShift = false
+}: {
+  id: string;
+  disabled: boolean;
+  hasExistingShift?: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function action(status: "APPROVED" | "REJECTED") {
+    const overwriteExistingShift =
+      status === "APPROVED" &&
+      hasExistingShift &&
+      window.confirm("既存シフトがあります。\n承認済み休暇で既存シフトを上書きしますか？");
+
+    if (status === "APPROVED" && hasExistingShift && !overwriteExistingShift) return;
+
     setLoading(true);
     await fetch(`/api/admin/leaves/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, overwriteExistingShift })
     });
     setLoading(false);
     router.refresh();

@@ -11,7 +11,8 @@ export default async function MastersPage() {
     { title: "役職マスタ", desc: "社員に付与する役職を管理します。", href: "/admin/masters/positions", icon: "役" },
     { title: "雇用区分マスタ", desc: "正社員、パート、アルバイトなどを管理します。", href: "/admin/masters/employment-types", icon: "雇" },
     { title: "権限マスタ", desc: "管理者、社員などの権限を管理します。", href: "/admin/masters/roles", icon: "権" },
-    { title: "休暇種別マスタ", desc: "有休、代休、特別休暇などを管理します。", href: "/admin/masters/leave-types", icon: "休" }
+    { title: "休暇種別マスタ", desc: "有休、代休、特別休暇などを管理します。", href: "/admin/masters/leave-types", icon: "休" },
+    { title: "勤務パターン管理", desc: "勤務時間、休憩、休み、夜勤などの勤務パターンを管理します。", href: "/admin/masters/work-patterns", icon: "勤" }
   ];
 
   return (

@@ -77,6 +77,8 @@ export function AttendanceRequestApprovalActions({
   legacyCorrectionStatus,
   legacyLeaveRequestId,
   legacyLeaveRequestStatus,
+  leaveHasExistingShift = false,
+  leaveApprovalMayOverwriteShift = false,
   canApproveByPermission,
   approvalPermissionReason
 }: {
@@ -86,6 +88,8 @@ export function AttendanceRequestApprovalActions({
   legacyCorrectionStatus: CorrectionStatus | null;
   legacyLeaveRequestId: string;
   legacyLeaveRequestStatus: LeaveRequestStatus | null;
+  leaveHasExistingShift?: boolean;
+  leaveApprovalMayOverwriteShift?: boolean;
   canApproveByPermission: boolean;
   approvalPermissionReason: string;
 }) {
@@ -118,6 +122,23 @@ export function AttendanceRequestApprovalActions({
 
   async function submit(nextStatus: "APPROVED" | "REJECTED") {
     if (!canOperate || isLoading) return;
+    const overwriteExistingShift =
+      nextStatus === "APPROVED" &&
+      isLeaveRequest &&
+      leaveHasExistingShift &&
+      leaveApprovalMayOverwriteShift &&
+      window.confirm("既存シフトがあります。\n承認済み休暇で既存シフトを上書きしますか？");
+
+    if (
+      nextStatus === "APPROVED" &&
+      isLeaveRequest &&
+      leaveHasExistingShift &&
+      leaveApprovalMayOverwriteShift &&
+      !overwriteExistingShift
+    ) {
+      return;
+    }
+
     setLoadingStatus(nextStatus);
     setMessage(null);
     setError(null);
@@ -126,7 +147,7 @@ export function AttendanceRequestApprovalActions({
       const response = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus })
+        body: JSON.stringify({ status: nextStatus, overwriteExistingShift })
       });
 
       if (!response.ok) {

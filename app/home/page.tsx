@@ -7,10 +7,8 @@ import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function HomePage() {
   const session = await requireAuth();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
+  const { key: todayKey, start: todayStart, end: todayEnd } = todayTokyoRange();
+  const monthStart = new Date(`${todayKey.slice(0, 7)}-01T00:00:00+09:00`);
 
   const logs = await prisma.attendanceLog.findMany({
     where: {
@@ -21,7 +19,6 @@ export default async function HomePage() {
     orderBy: { stampedAt: "asc" }
   });
 
-  const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
   const monthLogs = await prisma.attendanceLog.findMany({
     where: {
       companyId: session.user.companyId,
@@ -36,7 +33,11 @@ export default async function HomePage() {
   });
 
   const shift = await prisma.shift.findFirst({
-    where: { companyId: session.user.companyId, userId: session.user.id, workDate: todayStart },
+    where: {
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      workDate: { gte: todayStart, lt: todayEnd }
+    },
     include: {
       workPattern: {
         select: {
@@ -137,6 +138,19 @@ export default async function HomePage() {
       <BottomNav isAdmin={session.user.role === "ADMIN"} />
     </main>
   );
+}
+
+function todayTokyoRange() {
+  const key = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+  const start = new Date(`${key}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { key, start, end };
 }
 
 function formatTodayShift(

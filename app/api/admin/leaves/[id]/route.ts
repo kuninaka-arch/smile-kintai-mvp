@@ -24,6 +24,12 @@ class LinkedAttendanceRequestAlreadyProcessedError extends Error {
   }
 }
 
+class ExistingShiftOverwriteRequiredError extends Error {
+  constructor() {
+    super("Existing shift overwrite confirmation is required.");
+  }
+}
+
 type LeaveRequestForApproval = {
   id: string;
   companyId: string;
@@ -64,6 +70,23 @@ function tokyoDateRange(date: Date) {
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 1);
   return { start, end };
+}
+
+async function findExistingShiftForLeave(
+  client: Prisma.TransactionClient | typeof prisma,
+  request: LeaveRequestForApproval
+) {
+  if (request.unit !== LeaveRequestUnit.FULL_DAY) return null;
+
+  const { start, end } = tokyoDateRange(request.targetDate);
+  return client.shift.findFirst({
+    where: {
+      companyId: request.companyId,
+      userId: request.userId,
+      workDate: { gte: start, lt: end }
+    },
+    orderBy: { workDate: "asc" }
+  });
 }
 
 function leavePatternCategory(code: string, name: string) {
@@ -129,13 +152,20 @@ async function applyLeaveRequestFinalApprovalEffects({
   tx,
   request,
   careMode,
-  consumePaidLeave
+  consumePaidLeave,
+  overwriteExistingShift
 }: {
   tx: Prisma.TransactionClient;
   request: LeaveRequestForApproval;
   careMode: boolean;
   consumePaidLeave: boolean;
+  overwriteExistingShift: boolean;
 }) {
+  const existingShift = await findExistingShiftForLeave(tx, request);
+  if (existingShift && !overwriteExistingShift) {
+    throw new ExistingShiftOverwriteRequiredError();
+  }
+
   if (consumePaidLeave) {
     const usedDays = request.unit === LeaveRequestUnit.HOUR
       ? Number(request.hours ?? 0) / 8
@@ -190,14 +220,6 @@ async function applyLeaveRequestFinalApprovalEffects({
   });
 
   const { start, end } = tokyoDateRange(request.targetDate);
-  const existingShift = await tx.shift.findFirst({
-    where: {
-      companyId: request.companyId,
-      userId: request.userId,
-      workDate: { gte: start, lt: end }
-    },
-    orderBy: { workDate: "asc" }
-  });
   const shiftData = {
     workDate: start,
     startTime: "00:00",
@@ -207,7 +229,7 @@ async function applyLeaveRequestFinalApprovalEffects({
     workPatternId: pattern.id
   };
   if (existingShift) {
-    if (careMode) return;
+    if (careMode && !overwriteExistingShift) return;
     await tx.shift.update({ where: { id: existingShift.id }, data: shiftData });
     await tx.shift.deleteMany({
       where: {
@@ -235,6 +257,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   const body = await req.json().catch(() => ({}));
   const status = body.status as LeaveRequestStatus;
+  const overwriteExistingShift = body.overwriteExistingShift === true;
   if (!validStatuses.includes(status)) {
     return apiError("休暇申請の処理状態が正しくありません。", 400);
   }
@@ -477,7 +500,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
               tx,
               request,
               careMode,
-              consumePaidLeave: linkedAttendanceRequest.requestType === "PAID_LEAVE"
+              consumePaidLeave: linkedAttendanceRequest.requestType === "PAID_LEAVE",
+              overwriteExistingShift
             });
           }
 
@@ -497,6 +521,26 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         };
       }
     } catch (error) {
+      if (error instanceof ExistingShiftOverwriteRequiredError) {
+        await logAction({
+          request: req,
+          userId: session.user.id,
+          companyId: session.user.companyId,
+          action: "DENY_LEAVE_SHIFT_OVERWRITE_REQUIRED",
+          targetType: "LEAVE",
+          targetId: request.id,
+          before: request,
+          meta: {
+            reason: error.message,
+            leaveRequestId: request.id,
+            requestedStatus: status,
+            attendanceRequestId: linkedAttendanceRequest.id
+          }
+        });
+
+        return apiError("既存シフトがあります。承認済み休暇で既存シフトを上書きする場合は確認してください。", 409);
+      }
+
       if (!(error instanceof LeaveAlreadyProcessedError) && !(error instanceof LinkedAttendanceRequestAlreadyProcessedError)) {
         throw error;
       }
@@ -636,6 +680,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           },
           orderBy: { workDate: "asc" }
         });
+        if (existingShift && !overwriteExistingShift) {
+          throw new ExistingShiftOverwriteRequiredError();
+        }
         const shiftData = {
           workDate: start,
           startTime: "00:00",
@@ -645,7 +692,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           workPatternId: pattern.id
         };
         if (existingShift) {
-          if (careMode) return updatedRequest;
+          if (careMode && !overwriteExistingShift) return updatedRequest;
           await tx.shift.update({ where: { id: existingShift.id }, data: shiftData });
           await tx.shift.deleteMany({
             where: {
@@ -669,6 +716,25 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return updatedRequest;
     });
   } catch (error) {
+    if (error instanceof ExistingShiftOverwriteRequiredError) {
+      await logAction({
+        request: req,
+        userId: session.user.id,
+        companyId: session.user.companyId,
+        action: "DENY_LEAVE_SHIFT_OVERWRITE_REQUIRED",
+        targetType: "LEAVE",
+        targetId: request.id,
+        before: request,
+        meta: {
+          reason: error.message,
+          leaveRequestId: request.id,
+          requestedStatus: status
+        }
+      });
+
+      return apiError("既存シフトがあります。承認済み休暇で既存シフトを上書きする場合は確認してください。", 409);
+    }
+
     if (!(error instanceof LeaveAlreadyProcessedError)) throw error;
 
     const currentRequest = await prisma.leaveRequest.findFirst({

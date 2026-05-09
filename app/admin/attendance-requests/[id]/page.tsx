@@ -92,6 +92,19 @@ function formatDate(date: Date | null | undefined) {
   }).format(date);
 }
 
+function tokyoDateRange(date: Date) {
+  const key = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+  const start = new Date(`${key}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+
 function getPayloadValue(payloadJson: unknown, key: string): string {
   if (!payloadJson || typeof payloadJson !== "object" || Array.isArray(payloadJson)) return "";
   const value = (payloadJson as Record<string, unknown>)[key];
@@ -319,6 +332,20 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
         })
       : null;
   const legacyLeaveRequestStatus: LeaveRequestStatus | null = leaveRequest?.status ?? null;
+  let leaveHasExistingShift = false;
+  if (leaveRequest?.unit === "FULL_DAY") {
+    const { start, end } = tokyoDateRange(leaveRequest.targetDate);
+    leaveHasExistingShift = Boolean(
+      await prisma.shift.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          userId: leaveRequest.userId,
+          workDate: { gte: start, lt: end }
+        },
+        select: { id: true }
+      })
+    );
+  }
 
   const approvalPermission = await resolveApprovalPermission({
     attendanceRequestId: request.id,
@@ -326,6 +353,11 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
     companyId: session.user.companyId
   });
   const currentStep = approvalRoute?.steps.find((step) => step.stepOrder === request.currentStepOrder) ?? null;
+  const leaveApprovalMayOverwriteShift = Boolean(
+    leaveHasExistingShift &&
+      currentStep &&
+      !approvalRoute?.steps.some((step) => step.stepOrder > currentStep.stepOrder)
+  );
   const summaryState =
     request.status === "APPROVED"
       ? "最終承認済み"
@@ -445,6 +477,8 @@ export default async function AttendanceRequestDetailPage({ params }: { params: 
             legacyCorrectionStatus={legacyCorrectionStatus}
             legacyLeaveRequestId={leaveRequestId}
             legacyLeaveRequestStatus={legacyLeaveRequestStatus}
+            leaveHasExistingShift={leaveHasExistingShift}
+            leaveApprovalMayOverwriteShift={leaveApprovalMayOverwriteShift}
             canApproveByPermission={approvalPermission.canApprove}
             approvalPermissionReason={approvalPermission.reason}
           />
