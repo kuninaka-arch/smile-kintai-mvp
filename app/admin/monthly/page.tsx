@@ -166,6 +166,15 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   );
   console.log("[PERF][admin-monthly] aggregate-monthly-data", Date.now() - aggregateStart, "ms");
   console.log("[PERF][admin-monthly] total", Date.now() - totalStart, "ms");
+  const pagination = (
+    <MonthlyPagination
+      totalCount={totalCount}
+      page={page}
+      totalPages={totalPages}
+      ym={ym}
+      selectedDepartment={selectedDepartment}
+    />
+  );
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -238,6 +247,9 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
             <div className="border-b p-5">
               <h2 className="text-lg font-black">社員別集計</h2>
               <p className="text-sm text-slate-500">シフト予定、打刻実績、承認済み休暇をもとに集計します。</p>
+            </div>
+            <div className="border-b px-5 py-3">
+              {pagination}
             </div>
             <div className="max-h-[68vh] overflow-auto">
               <table className="w-full min-w-[1680px] text-sm">
@@ -327,6 +339,52 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         </div>
       </section>
     </main>
+  );
+}
+
+function MonthlyPagination({
+  totalCount,
+  page,
+  totalPages,
+  ym,
+  selectedDepartment
+}: {
+  totalCount: number;
+  page: number;
+  totalPages: number;
+  ym: string;
+  selectedDepartment: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+      <p>
+        全 {totalCount}名中 {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}〜
+        {Math.min(page * pageSize, totalCount)}名を表示
+      </p>
+      <div className="flex items-center gap-2">
+        <Link
+          href={monthlyPageHref(Math.max(1, page - 1), ym, selectedDepartment)}
+          className={`rounded-lg border px-3 py-2 font-bold ${
+            page <= 1 ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+          }`}
+          aria-disabled={page <= 1}
+        >
+          前へ
+        </Link>
+        <span className="font-bold">
+          {page} / {totalPages}
+        </span>
+        <Link
+          href={monthlyPageHref(page + 1, ym, selectedDepartment)}
+          className={`rounded-lg border px-3 py-2 font-bold ${
+            page >= totalPages ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+          }`}
+          aria-disabled={page >= totalPages}
+        >
+          次へ
+        </Link>
+      </div>
+    </div>
   );
 }
 
