@@ -3,6 +3,9 @@ import { requireAdmin } from "@/components/RequireAuth";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { LeaveActionButtons } from "@/components/LeaveActionButtons";
 import { formatJaDate } from "@/lib/attendance";
+import Link from "next/link";
+
+const pageSize = 20;
 
 function statusLabel(status: string) {
   if (status === "APPROVED") return "承認";
@@ -26,37 +29,81 @@ function tokyoDateRange(date: Date) {
   const start = new Date(`${key}T00:00:00+09:00`);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 1);
-  return { start, end };
+  return { key, start, end };
 }
 
-export default async function AdminLeavesPage() {
-  const session = await requireAdmin();
+function parsePage(value?: string) {
+  const page = Number(value);
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+}
 
-  const requests = await prisma.leaveRequest.findMany({
-    where: { companyId: session.user.companyId },
-    include: { user: true, leaveType: true },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }]
+function shiftMapKey(userId: string, date: Date) {
+  return `${userId}:${tokyoDateRange(date).key}`;
+}
+
+export default async function AdminLeavesPage({ searchParams }: { searchParams?: { page?: string } }) {
+  const session = await requireAdmin();
+  const page = parsePage(searchParams?.page);
+  const where = { companyId: session.user.companyId };
+
+  const [totalCount, requests] = await Promise.all([
+    prisma.leaveRequest.count({ where }),
+    prisma.leaveRequest.findMany({
+      where,
+      select: {
+        id: true,
+        userId: true,
+        targetDate: true,
+        unit: true,
+        hours: true,
+        reason: true,
+        status: true,
+        user: {
+          select: {
+            name: true,
+            department: true
+          }
+        },
+        leaveType: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    })
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const pendingFullDayRequests = requests.filter((request) => request.status === "PENDING" && request.unit === "FULL_DAY");
+  const shiftConditions = pendingFullDayRequests.map((request) => {
+    const { start, end } = tokyoDateRange(request.targetDate);
+    return {
+      userId: request.userId,
+      workDate: { gte: start, lt: end }
+    };
   });
 
+  const shifts = shiftConditions.length > 0
+    ? await prisma.shift.findMany({
+        where: {
+          companyId: session.user.companyId,
+          OR: shiftConditions
+        },
+        select: {
+          userId: true,
+          workDate: true
+        }
+      })
+    : [];
+
+  const existingShiftKeys = new Set(shifts.map((shift) => shiftMapKey(shift.userId, shift.workDate)));
   const existingShiftRequestIds = new Set(
-    (
-      await Promise.all(
-        requests
-          .filter((request) => request.status === "PENDING" && request.unit === "FULL_DAY")
-          .map(async (request) => {
-            const { start, end } = tokyoDateRange(request.targetDate);
-            const shift = await prisma.shift.findFirst({
-              where: {
-                companyId: session.user.companyId,
-                userId: request.userId,
-                workDate: { gte: start, lt: end }
-              },
-              select: { id: true }
-            });
-            return shift ? request.id : null;
-          })
-      )
-    ).filter((id): id is string => Boolean(id))
+    pendingFullDayRequests
+      .filter((request) => existingShiftKeys.has(shiftMapKey(request.userId, request.targetDate)))
+      .map((request) => request.id)
   );
 
   return (
@@ -119,6 +166,35 @@ export default async function AdminLeavesPage() {
               </table>
             </div>
           </section>
+          <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+            <p>
+              {totalCount}件中 {requests.length === 0 ? 0 : (page - 1) * pageSize + 1}-
+              {Math.min(page * pageSize, totalCount)}件を表示
+            </p>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/admin/leaves?page=${Math.max(1, page - 1)}`}
+                className={`rounded-lg border px-3 py-2 font-bold ${
+                  page <= 1 ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+                }`}
+                aria-disabled={page <= 1}
+              >
+                前へ
+              </Link>
+              <span className="font-bold">
+                {page} / {totalPages}
+              </span>
+              <Link
+                href={`/admin/leaves?page=${page + 1}`}
+                className={`rounded-lg border px-3 py-2 font-bold ${
+                  page >= totalPages ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+                }`}
+                aria-disabled={page >= totalPages}
+              >
+                次へ
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </main>
