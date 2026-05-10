@@ -66,14 +66,14 @@ export default async function HistoryPage({
   const months = buildSummaryMonths(availableMonths, selectedYm, currentYm);
   console.log("[PERF][history] summary-range-prep", Date.now() - summaryPrepStart, "ms");
 
-  const summariesStart = Date.now();
-  const summariesPromise = loadMonthSummaries(session.user.companyId, session.user.id, months).then((result) => {
-    console.log("[PERF][history] load-month-summaries", Date.now() - summariesStart, "ms");
-    return result;
-  });
   const detailStart = Date.now();
   const detailPromise = loadMonthDetail(session.user.companyId, session.user.id, selectedYm).then((result) => {
     console.log("[PERF][history] load-month-detail", Date.now() - detailStart, "ms");
+    return result;
+  });
+  const summariesStart = Date.now();
+  const summariesPromise = loadMonthSummaries(session.user.companyId, session.user.id, months).then((result) => {
+    console.log("[PERF][history] load-month-summaries", Date.now() - summariesStart, "ms");
     return result;
   });
   const [monthSummaries, monthDetail] = await Promise.all([
@@ -268,9 +268,14 @@ type MonthSummary = {
 async function loadMonthSummaries(companyId: string, userId: string, months: string[]) {
   if (months.length === 0) return [];
 
-  const sortedMonths = [...months].sort();
-  const { start } = monthRange(sortedMonths[0]);
-  const { end } = monthRange(sortedMonths[sortedMonths.length - 1]);
+  const stampedAtFilters = months.map((ym) => {
+    const { start, end } = monthRange(ym);
+    return { stampedAt: { gte: start, lt: end } };
+  });
+  const targetDateFilters = months.map((ym) => {
+    const { start, end } = monthRange(ym);
+    return { targetDate: { gte: start, lt: end } };
+  });
   const monthSet = new Set(months);
   const summaries = new Map(months.map((ym) => [ym, createMonthSummary(ym)]));
 
@@ -280,7 +285,7 @@ async function loadMonthSummaries(companyId: string, userId: string, months: str
   const summaryLeaveRequestsStart = Date.now();
   const [logs, attendanceRequests, correctionRequests, leaveRequests] = await Promise.all([
     prisma.attendanceLog.findMany({
-      where: { companyId, userId, stampedAt: { gte: start, lt: end } },
+      where: { companyId, userId, OR: stampedAtFilters },
       select: { type: true, stampedAt: true },
       orderBy: { stampedAt: "asc" }
     }).then((result) => {
@@ -288,21 +293,21 @@ async function loadMonthSummaries(companyId: string, userId: string, months: str
       return result;
     }),
     prisma.attendanceRequest.findMany({
-      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      where: { companyId, userId, OR: targetDateFilters },
       select: { status: true, targetDate: true }
     }).then((result) => {
       console.log("[PERF][history] history-summary-attendance-requests", Date.now() - summaryAttendanceRequestsStart, "ms");
       return result;
     }),
     prisma.attendanceCorrectionRequest.findMany({
-      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      where: { companyId, userId, OR: targetDateFilters },
       select: { status: true, targetDate: true }
     }).then((result) => {
       console.log("[PERF][history] history-summary-correction-requests", Date.now() - summaryCorrectionRequestsStart, "ms");
       return result;
     }),
     prisma.leaveRequest.findMany({
-      where: { companyId, userId, targetDate: { gte: start, lt: end } },
+      where: { companyId, userId, OR: targetDateFilters },
       select: { status: true, targetDate: true }
     }).then((result) => {
       console.log("[PERF][history] history-summary-leave-requests", Date.now() - summaryLeaveRequestsStart, "ms");
