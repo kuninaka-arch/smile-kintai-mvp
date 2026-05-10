@@ -36,6 +36,12 @@ type MonthlyTableProps = {
   requestedPage: number;
 };
 
+function userOrderBy(selectedDepartment: string) {
+  return selectedDepartment === "all"
+    ? [{ department: "asc" as const }, { displayOrder: "asc" as const }, { createdAt: "asc" as const }]
+    : [{ displayOrder: "asc" as const }, { createdAt: "asc" as const }];
+}
+
 export async function MonthlyTable({ companyId, ym, selectedDepartment, requestedPage }: MonthlyTableProps) {
   const totalStart = Date.now();
   const perfId = Math.random().toString(36).slice(2, 8);
@@ -60,27 +66,44 @@ export async function MonthlyTable({ companyId, ym, selectedDepartment, requeste
     return count;
   });
 
-  const totalCount = await totalCountPromise;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const page = Math.min(requestedPage, totalPages);
-
   const usersStart = Date.now();
-  const usersPromise = prisma.user.findMany({
+  const requestedUsersPromise = prisma.user.findMany({
     where: userWhere,
     select: {
       id: true,
       name: true,
       department: true
     },
-    skip: (page - 1) * pageSize,
+    skip: (requestedPage - 1) * pageSize,
     take: pageSize,
-    orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
+    orderBy: userOrderBy(selectedDepartment)
   }).then((result) => {
     console.log("[PERF][admin-monthly-table]", perfId, "load-users-basic", Date.now() - usersStart, "ms");
     return result;
   });
 
-  const [period, users] = await Promise.all([periodPromise, usersPromise]);
+  const totalCount = await totalCountPromise;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  let users = await requestedUsersPromise;
+  if (page !== requestedPage) {
+    const adjustedUsersStart = Date.now();
+    users = await prisma.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        name: true,
+        department: true
+      },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: userOrderBy(selectedDepartment)
+    });
+    console.log("[PERF][admin-monthly-table]", perfId, "load-users-basic-adjusted", Date.now() - adjustedUsersStart, "ms");
+  }
+
+  const period = await periodPromise;
   const start = period.periodStart;
   const end = period.periodEndExclusive;
 
