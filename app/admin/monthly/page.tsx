@@ -89,7 +89,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
 
   const relatedStart = Date.now();
   const userIds = users.map((user) => user.id);
-  const [attendanceLogs, shifts, paidLeaves, leaveRequests] = userIds.length > 0
+  const [attendanceLogs, shifts, paidLeaveSummaries, leaveRequests] = userIds.length > 0
     ? await Promise.all([
         (async () => {
           const startedAt = Date.now();
@@ -111,7 +111,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         })(),
         (async () => {
           const startedAt = Date.now();
-          const result = await prisma.shift.findMany({
+          const baseShifts = await prisma.shift.findMany({
             where: {
               companyId: session.user.companyId,
               userId: { in: userIds },
@@ -124,27 +124,41 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               endTime: true,
               breakMinutes: true,
               patternCode: true,
-              workPattern: {
-                select: {
-                  name: true,
-                  isHoliday: true
-                }
-              }
+              workPatternId: true
             },
             orderBy: { workDate: "asc" }
           });
+          const workPatternIds = Array.from(new Set(baseShifts.map((shift) => shift.workPatternId).filter((id): id is string => Boolean(id))));
+          const workPatterns = workPatternIds.length > 0
+            ? await prisma.workPattern.findMany({
+                where: {
+                  companyId: session.user.companyId,
+                  id: { in: workPatternIds }
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  isHoliday: true
+                }
+              })
+            : [];
+          const workPatternById = new Map(workPatterns.map((workPattern) => [workPattern.id, workPattern]));
+          const result = baseShifts.map((shift) => ({
+            ...shift,
+            workPattern: shift.workPatternId ? workPatternById.get(shift.workPatternId) ?? null : null
+          }));
           console.log("[PERF][admin-monthly] monthly-related-shifts", Date.now() - startedAt, "ms");
           return result;
         })(),
         (async () => {
           const startedAt = Date.now();
-          const result = await prisma.paidLeave.findMany({
+          const result = await prisma.paidLeave.groupBy({
+            by: ["userId"],
             where: {
               companyId: session.user.companyId,
               userId: { in: userIds }
             },
-            select: {
-              userId: true,
+            _sum: {
               grantedDays: true,
               usedDays: true
             }
@@ -166,8 +180,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               targetDate: true,
               unit: true,
               hours: true
-            },
-            orderBy: { targetDate: "asc" }
+            }
           });
           console.log("[PERF][admin-monthly] monthly-related-leave-requests", Date.now() - startedAt, "ms");
           return result;
@@ -179,7 +192,15 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   const mapStart = Date.now();
   const logsByUserId = groupByUserId(attendanceLogs);
   const shiftsByUserId = groupByUserId(shifts);
-  const paidLeavesByUserId = groupByUserId(paidLeaves);
+  const paidLeavesByUserId = new Map<string, { grantedDays: number; usedDays: number }[]>();
+  for (const summary of paidLeaveSummaries) {
+    paidLeavesByUserId.set(summary.userId, [
+      {
+        grantedDays: Number(summary._sum.grantedDays ?? 0),
+        usedDays: Number(summary._sum.usedDays ?? 0)
+      }
+    ]);
+  }
   const leaveRequestsByUserId = groupByUserId(leaveRequests);
   console.log("[PERF][admin-monthly] map-monthly-related-data", Date.now() - mapStart, "ms");
 
