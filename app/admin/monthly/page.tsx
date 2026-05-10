@@ -7,7 +7,23 @@ import { minutesToHHMM } from "@/lib/attendance";
 import { formatDateKey, getPeriodLock } from "@/lib/period-lock";
 import { summarizeMonthlyAttendance } from "@/lib/monthly-attendance";
 
-export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string } }) {
+const pageSize = 20;
+
+function parsePage(value?: string) {
+  const page = Number(value);
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+}
+
+function monthlyPageHref(page: number, ym: string, department: string) {
+  const params = new URLSearchParams({
+    ym,
+    department,
+    page: String(page)
+  });
+  return `/admin/monthly?${params.toString()}`;
+}
+
+export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string; page?: string } }) {
   const totalStart = Date.now();
   console.log("[PERF][admin-monthly] total:start");
 
@@ -19,6 +35,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const selectedDepartment = searchParams.department ?? "all";
+  const requestedPage = parsePage(searchParams.page);
   console.log("[PERF][admin-monthly] render-prep", Date.now() - renderPrepStart, "ms");
 
   const companyStart = Date.now();
@@ -37,11 +54,15 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   console.log("[PERF][admin-monthly] load-departments", Date.now() - departmentsStart, "ms");
 
   const usersStart = Date.now();
+  const userWhere = {
+    companyId: session.user.companyId,
+    ...(selectedDepartment === "all" ? {} : { department: selectedDepartment === "-" ? null : selectedDepartment })
+  };
+  const totalCount = await prisma.user.count({ where: userWhere });
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const page = Math.min(requestedPage, totalPages);
   const users = await prisma.user.findMany({
-    where: {
-      companyId: session.user.companyId,
-      ...(selectedDepartment === "all" ? {} : { department: selectedDepartment === "-" ? null : selectedDepartment })
-    },
+    where: userWhere,
     select: {
       id: true,
       name: true,
@@ -86,6 +107,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
         }
       }
     },
+    skip: (page - 1) * pageSize,
+    take: pageSize,
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
   console.log("[PERF][admin-monthly] load-users-with-monthly-data", Date.now() - usersStart, "ms");
@@ -272,6 +295,35 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               </table>
             </div>
           </section>
+          <div className="mt-4 flex flex-col gap-3 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+            <p>
+              全 {totalCount}名中 {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}〜
+              {Math.min(page * pageSize, totalCount)}名を表示
+            </p>
+            <div className="flex items-center gap-2">
+              <Link
+                href={monthlyPageHref(Math.max(1, page - 1), ym, selectedDepartment)}
+                className={`rounded-lg border px-3 py-2 font-bold ${
+                  page <= 1 ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+                }`}
+                aria-disabled={page <= 1}
+              >
+                前へ
+              </Link>
+              <span className="font-bold">
+                {page} / {totalPages}
+              </span>
+              <Link
+                href={monthlyPageHref(page + 1, ym, selectedDepartment)}
+                className={`rounded-lg border px-3 py-2 font-bold ${
+                  page >= totalPages ? "pointer-events-none border-slate-200 text-slate-300" : "border-slate-300 text-slate-700 hover:bg-white"
+                }`}
+                aria-disabled={page >= totalPages}
+              >
+                次へ
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </main>
