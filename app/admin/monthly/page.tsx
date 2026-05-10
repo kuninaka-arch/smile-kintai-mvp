@@ -29,20 +29,48 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
       companyId: session.user.companyId,
       ...(selectedDepartment === "all" ? {} : { department: selectedDepartment === "-" ? null : selectedDepartment })
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      department: true,
       attendanceLogs: {
         where: { stampedAt: { gte: start, lt: end } },
+        select: {
+          type: true,
+          stampedAt: true
+        },
         orderBy: { stampedAt: "asc" }
       },
       shifts: {
         where: { workDate: { gte: start, lt: end } },
-        include: { workPattern: true },
+        select: {
+          workDate: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+          patternCode: true,
+          workPattern: {
+            select: {
+              name: true,
+              isHoliday: true
+            }
+          }
+        },
         orderBy: { workDate: "asc" }
       },
-      paidLeaves: true,
+      paidLeaves: {
+        select: {
+          grantedDays: true,
+          usedDays: true
+        }
+      },
       leaveRequests: {
         where: { status: "APPROVED", targetDate: { gte: start, lt: end } },
-        include: { leaveType: true }
+        select: {
+          targetDate: true,
+          unit: true,
+          hours: true
+        }
       }
     },
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
