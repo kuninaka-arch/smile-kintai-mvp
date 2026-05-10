@@ -10,6 +10,8 @@ const weekdayFormatter = new Intl.DateTimeFormat("ja-JP", {
   weekday: "short"
 });
 
+const summaryMonthLimit = 12;
+
 const requestTypeLabels: Record<string, string> = {
   ATTENDANCE_CORRECTION: "打刻修正",
   OVERTIME: "残業",
@@ -51,14 +53,18 @@ export default async function HistoryPage({
   const session = await requireAuth();
   console.log("[PERF][history] auth-session", Date.now() - authStart, "ms");
 
+  const renderPrepStart = Date.now();
+  const currentYm = currentTokyoMonth();
+  const selectedYm = normalizeYm(searchParams?.ym) ?? currentYm;
+  console.log("[PERF][history] render-prep", Date.now() - renderPrepStart, "ms");
+
   const availableMonthsStart = Date.now();
-  const availableMonths = await loadAvailableMonths(session.user.companyId, session.user.id);
+  const availableMonths = await loadAvailableMonths(session.user.companyId, session.user.id, currentYm, selectedYm);
   console.log("[PERF][history] load-available-months", Date.now() - availableMonthsStart, "ms");
 
-  const renderPrepStart = Date.now();
-  const selectedYm = normalizeYm(searchParams?.ym) ?? currentTokyoMonth();
-  const months = availableMonths.includes(selectedYm) ? availableMonths : [selectedYm, ...availableMonths];
-  console.log("[PERF][history] render-prep", Date.now() - renderPrepStart, "ms");
+  const summaryPrepStart = Date.now();
+  const months = buildSummaryMonths(availableMonths, selectedYm, currentYm);
+  console.log("[PERF][history] summary-range-prep", Date.now() - summaryPrepStart, "ms");
 
   const summariesStart = Date.now();
   const summariesPromise = loadMonthSummaries(session.user.companyId, session.user.id, months).then((result) => {
@@ -197,29 +203,52 @@ export default async function HistoryPage({
   );
 }
 
-async function loadAvailableMonths(companyId: string, userId: string) {
+async function loadAvailableMonths(companyId: string, userId: string, currentYm: string, selectedYm: string) {
+  const { start: recentStart } = monthRange(addMonths(currentYm, -(summaryMonthLimit - 1)));
+  const { end: recentEnd } = monthRange(currentYm);
+  const { start: selectedStart, end: selectedEnd } = monthRange(selectedYm);
   const rows = await prisma.$queryRaw<{ ym: string }[]>`
     select ym
     from (
       select distinct to_char("stampedAt" at time zone 'Asia/Tokyo', 'YYYY-MM') as ym
       from "AttendanceLog"
       where "companyId" = ${companyId} and "userId" = ${userId}
+        and (
+          ("stampedAt" >= ${recentStart} and "stampedAt" < ${recentEnd})
+          or ("stampedAt" >= ${selectedStart} and "stampedAt" < ${selectedEnd})
+        )
       union
       select distinct to_char("workDate" at time zone 'Asia/Tokyo', 'YYYY-MM') as ym
       from "Shift"
       where "companyId" = ${companyId} and "userId" = ${userId}
+        and (
+          ("workDate" >= ${recentStart} and "workDate" < ${recentEnd})
+          or ("workDate" >= ${selectedStart} and "workDate" < ${selectedEnd})
+        )
       union
       select distinct to_char("targetDate" at time zone 'Asia/Tokyo', 'YYYY-MM') as ym
       from "AttendanceRequest"
       where "companyId" = ${companyId} and "userId" = ${userId} and "targetDate" is not null
+        and (
+          ("targetDate" >= ${recentStart} and "targetDate" < ${recentEnd})
+          or ("targetDate" >= ${selectedStart} and "targetDate" < ${selectedEnd})
+        )
       union
       select distinct to_char("targetDate" at time zone 'Asia/Tokyo', 'YYYY-MM') as ym
       from "AttendanceCorrectionRequest"
       where "companyId" = ${companyId} and "userId" = ${userId}
+        and (
+          ("targetDate" >= ${recentStart} and "targetDate" < ${recentEnd})
+          or ("targetDate" >= ${selectedStart} and "targetDate" < ${selectedEnd})
+        )
       union
       select distinct to_char("targetDate" at time zone 'Asia/Tokyo', 'YYYY-MM') as ym
       from "LeaveRequest"
       where "companyId" = ${companyId} and "userId" = ${userId}
+        and (
+          ("targetDate" >= ${recentStart} and "targetDate" < ${recentEnd})
+          or ("targetDate" >= ${selectedStart} and "targetDate" < ${selectedEnd})
+        )
     ) month_rows
     where ym is not null
     order by ym desc
@@ -457,6 +486,21 @@ function addStatusCount(summaries: Map<string, MonthSummary>, targetDate: Date |
   if (status === "APPROVED") summary.approvedCount += 1;
 }
 
+function buildSummaryMonths(availableMonths: string[], selectedYm: string, currentYm: string) {
+  const recentMonths = new Set(
+    Array.from({ length: summaryMonthLimit }, (_, index) => addMonths(currentYm, -index))
+  );
+  const months = new Set<string>([currentYm, selectedYm]);
+
+  for (const ym of availableMonths) {
+    if (recentMonths.has(ym) || ym === selectedYm || ym === currentYm) {
+      months.add(ym);
+    }
+  }
+
+  return Array.from(months).sort((a, b) => b.localeCompare(a));
+}
+
 function calcBreakMinutes(logs: { type: string; stampedAt: Date }[]) {
   let breakMinutes = 0;
   let breakStart: Date | null = null;
@@ -524,4 +568,10 @@ function monthRange(ym: string) {
   }
 
   return { start, end, dates };
+}
+
+function addMonths(ym: string, amount: number) {
+  const [year, month] = ym.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + amount, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
