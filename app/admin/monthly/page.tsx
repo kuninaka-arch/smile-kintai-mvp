@@ -91,67 +91,87 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   const userIds = users.map((user) => user.id);
   const [attendanceLogs, shifts, paidLeaves, leaveRequests] = userIds.length > 0
     ? await Promise.all([
-        prisma.attendanceLog.findMany({
-          where: {
-            companyId: session.user.companyId,
-            userId: { in: userIds },
-            stampedAt: { gte: start, lt: end }
-          },
-          select: {
-            userId: true,
-            type: true,
-            stampedAt: true
-          },
-          orderBy: { stampedAt: "asc" }
-        }),
-        prisma.shift.findMany({
-          where: {
-            companyId: session.user.companyId,
-            userId: { in: userIds },
-            workDate: { gte: start, lt: end }
-          },
-          select: {
-            userId: true,
-            workDate: true,
-            startTime: true,
-            endTime: true,
-            breakMinutes: true,
-            patternCode: true,
-            workPattern: {
-              select: {
-                name: true,
-                isHoliday: true
+        (async () => {
+          const startedAt = Date.now();
+          const result = await prisma.attendanceLog.findMany({
+            where: {
+              companyId: session.user.companyId,
+              userId: { in: userIds },
+              stampedAt: { gte: start, lt: end }
+            },
+            select: {
+              userId: true,
+              type: true,
+              stampedAt: true
+            },
+            orderBy: { stampedAt: "asc" }
+          });
+          console.log("[PERF][admin-monthly] monthly-related-attendance-logs", Date.now() - startedAt, "ms");
+          return result;
+        })(),
+        (async () => {
+          const startedAt = Date.now();
+          const result = await prisma.shift.findMany({
+            where: {
+              companyId: session.user.companyId,
+              userId: { in: userIds },
+              workDate: { gte: start, lt: end }
+            },
+            select: {
+              userId: true,
+              workDate: true,
+              startTime: true,
+              endTime: true,
+              breakMinutes: true,
+              patternCode: true,
+              workPattern: {
+                select: {
+                  name: true,
+                  isHoliday: true
+                }
               }
+            },
+            orderBy: { workDate: "asc" }
+          });
+          console.log("[PERF][admin-monthly] monthly-related-shifts", Date.now() - startedAt, "ms");
+          return result;
+        })(),
+        (async () => {
+          const startedAt = Date.now();
+          const result = await prisma.paidLeave.findMany({
+            where: {
+              companyId: session.user.companyId,
+              userId: { in: userIds }
+            },
+            select: {
+              userId: true,
+              grantedDays: true,
+              usedDays: true
             }
-          },
-          orderBy: { workDate: "asc" }
-        }),
-        prisma.paidLeave.findMany({
-          where: {
-            companyId: session.user.companyId,
-            userId: { in: userIds }
-          },
-          select: {
-            userId: true,
-            grantedDays: true,
-            usedDays: true
-          }
-        }),
-        prisma.leaveRequest.findMany({
-          where: {
-            companyId: session.user.companyId,
-            userId: { in: userIds },
-            status: "APPROVED",
-            targetDate: { gte: start, lt: end }
-          },
-          select: {
-            userId: true,
-            targetDate: true,
-            unit: true,
-            hours: true
-          },
-          orderBy: { targetDate: "asc" }
-        })
+          });
+          console.log("[PERF][admin-monthly] monthly-related-paid-leaves", Date.now() - startedAt, "ms");
+          return result;
+        })(),
+        (async () => {
+          const startedAt = Date.now();
+          const result = await prisma.leaveRequest.findMany({
+            where: {
+              companyId: session.user.companyId,
+              userId: { in: userIds },
+              status: "APPROVED",
+              targetDate: { gte: start, lt: end }
+            },
+            select: {
+              userId: true,
+              targetDate: true,
+              unit: true,
+              hours: true
+            },
+            orderBy: { targetDate: "asc" }
+          });
+          console.log("[PERF][admin-monthly] monthly-related-leave-requests", Date.now() - startedAt, "ms");
+          return result;
+        })()
       ])
     : [[], [], [], []];
   console.log("[PERF][admin-monthly] load-monthly-related-data", Date.now() - relatedStart, "ms");
