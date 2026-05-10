@@ -6,23 +6,13 @@ import Link from "next/link";
 import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function HomePage() {
-  const totalStart = Date.now();
-  console.log("[PERF][home] total:start");
-
-  const authStart = Date.now();
   const session = await requireAuth();
-  console.log("[PERF][home] auth-session", Date.now() - authStart, "ms");
 
-  const userStart = Date.now();
   const isAdmin = session.user.role === "ADMIN";
-  console.log("[PERF][home] load-user", Date.now() - userStart, "ms");
 
-  const renderPrepStart = Date.now();
   const { key: todayKey, start: todayStart, end: todayEnd } = todayTokyoRange();
   const monthStart = new Date(`${todayKey.slice(0, 7)}-01T00:00:00+09:00`);
-  console.log("[PERF][home] render-prep", Date.now() - renderPrepStart, "ms");
 
-  const todayAttendanceStart = Date.now();
   const logs = await prisma.attendanceLog.findMany({
     where: {
       companyId: session.user.companyId,
@@ -31,9 +21,7 @@ export default async function HomePage() {
     },
     orderBy: { stampedAt: "asc" }
   });
-  console.log("[PERF][home] load-today-attendance", Date.now() - todayAttendanceStart, "ms");
 
-  const monthAttendanceStart = Date.now();
   const monthLogs = await prisma.attendanceLog.findMany({
     where: {
       companyId: session.user.companyId,
@@ -42,15 +30,11 @@ export default async function HomePage() {
       type: "CLOCK_IN"
     }
   });
-  console.log("[PERF][home] load-month-attendance", Date.now() - monthAttendanceStart, "ms");
 
-  const paidLeaveStart = Date.now();
   const paidLeave = await prisma.paidLeave.findFirst({
     where: { companyId: session.user.companyId, userId: session.user.id }
   });
-  console.log("[PERF][home] load-paid-leave", Date.now() - paidLeaveStart, "ms");
 
-  const shiftStart = Date.now();
   const shift = await prisma.shift.findFirst({
     where: {
       companyId: session.user.companyId,
@@ -67,7 +51,6 @@ export default async function HomePage() {
       }
     }
   });
-  console.log("[PERF][home] load-today-shift", Date.now() - shiftStart, "ms");
   const todayShiftText = formatTodayShift(shift);
 
   const latest = logs[logs.length - 1];
@@ -79,8 +62,6 @@ export default async function HomePage() {
       : latest?.type === "CLOCK_OUT"
       ? "退勤済み"
       : "未打刻";
-
-  console.log("[PERF][home] total", Date.now() - totalStart, "ms");
 
   return (
     <main className="min-h-screen bg-slate-100 pb-24">

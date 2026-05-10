@@ -7,40 +7,27 @@ import { AdminSidebar } from "@/components/AdminSidebar";
 import { isCareCompany } from "@/lib/industry";
 
 export default async function AdminDashboard({ searchParams }: { searchParams: { department?: string } }) {
-  const totalStart = Date.now();
-  console.log("[PERF][admin] total:start");
-
-  const authStart = Date.now();
   const session = await requireAdmin();
-  console.log("[PERF][admin] auth-session", Date.now() - authStart, "ms");
 
-  const companyStart = Date.now();
   const company = await prisma.company
     .findUnique({
       where: { id: session.user.companyId },
       select: { industryType: true }
     })
     .catch(() => null);
-  console.log("[PERF][admin] load-company", Date.now() - companyStart, "ms");
 
-  const redirectStart = Date.now();
   const shouldRedirectToCare = isCareCompany(company?.industryType);
-  console.log("[PERF][admin] redirect-check", Date.now() - redirectStart, "ms");
   if (shouldRedirectToCare) {
-    console.log("[PERF][admin] total", Date.now() - totalStart, "ms");
     redirect("/admin/care");
   }
 
-  const renderPrepStart = Date.now();
   const selectedDepartment = searchParams.department ?? "all";
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
-  console.log("[PERF][admin] render-prep", Date.now() - renderPrepStart, "ms");
 
-  const userStart = Date.now();
   const users = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
     include: {
@@ -57,7 +44,6 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
     },
     orderBy: { createdAt: "asc" }
   }).catch(() => []);
-  console.log("[PERF][admin] load-user", Date.now() - userStart, "ms");
 
   const departments = Array.from(new Set(users.map((user) => user.department ?? "-"))).sort();
   const visibleUsers = selectedDepartment === "all"
@@ -73,7 +59,6 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
   }).length;
   const breakNow = visibleUsers.filter((u) => u.attendanceLogs[0]?.type === "BREAK_START").length;
   const notClocked = Math.max(0, totalUsers - clockedIn - holidayUsers);
-  console.log("[PERF][admin] total", Date.now() - totalStart, "ms");
 
   const menuItems = [
     {

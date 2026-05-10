@@ -30,22 +30,14 @@ function tokyoDateRange(date: Date) {
 }
 
 export default async function AdminLeavesPage() {
-  const totalStart = Date.now();
-  console.log("[PERF][admin-leaves] total:start");
-
-  const authStart = Date.now();
   const session = await requireAdmin();
-  console.log("[PERF][admin-leaves] auth-session", Date.now() - authStart, "ms");
 
-  const requestsStart = Date.now();
   const requests = await prisma.leaveRequest.findMany({
     where: { companyId: session.user.companyId },
     include: { user: true, leaveType: true },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }]
   });
-  console.log("[PERF][admin-leaves] load-requests", Date.now() - requestsStart, "ms");
 
-  const shiftsStart = Date.now();
   const existingShiftRequestIds = new Set(
     (
       await Promise.all(
@@ -66,9 +58,6 @@ export default async function AdminLeavesPage() {
       )
     ).filter((id): id is string => Boolean(id))
   );
-  console.log("[PERF][admin-leaves] load-shifts", Date.now() - shiftsStart, "ms");
-  console.log("[PERF][admin-leaves] render-prep", 0, "ms");
-  console.log("[PERF][admin-leaves] total", Date.now() - totalStart, "ms");
 
   return (
     <main className="min-h-screen bg-slate-100">
