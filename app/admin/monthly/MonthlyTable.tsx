@@ -60,14 +60,12 @@ export async function MonthlyTable({ companyId, ym, selectedDepartment, requeste
     return count;
   });
 
-  const [period, totalCount] = await Promise.all([periodPromise, totalCountPromise]);
-  const start = period.periodStart;
-  const end = period.periodEndExclusive;
+  const totalCount = await totalCountPromise;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const page = Math.min(requestedPage, totalPages);
 
   const usersStart = Date.now();
-  const users = await prisma.user.findMany({
+  const usersPromise = prisma.user.findMany({
     where: userWhere,
     select: {
       id: true,
@@ -77,8 +75,14 @@ export async function MonthlyTable({ companyId, ym, selectedDepartment, requeste
     skip: (page - 1) * pageSize,
     take: pageSize,
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
+  }).then((result) => {
+    console.log("[PERF][admin-monthly-table]", perfId, "load-users-basic", Date.now() - usersStart, "ms");
+    return result;
   });
-  console.log("[PERF][admin-monthly-table]", perfId, "load-users-basic", Date.now() - usersStart, "ms");
+
+  const [period, users] = await Promise.all([periodPromise, usersPromise]);
+  const start = period.periodStart;
+  const end = period.periodEndExclusive;
 
   const relatedStart = Date.now();
   const userIds = users.map((user) => user.id);

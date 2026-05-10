@@ -67,10 +67,15 @@ export async function getCompanyClosingDay(companyId: string) {
 }
 
 export async function getPeriodLock(companyId: string, ym: string, closingDayValue?: number | null) {
-  const range = periodRangeForYm(ym, closingDayValue ?? (await getCompanyClosingDay(companyId)));
-  const lock = await prisma.attendancePeriodLock.findUnique({
-    where: { companyId_periodKey: { companyId, periodKey: range.periodKey } }
+  const closingDayPromise = closingDayValue == null
+    ? getCompanyClosingDay(companyId)
+    : Promise.resolve(normalizeClosingDay(closingDayValue));
+  const lockPromise = prisma.attendancePeriodLock.findUnique({
+    where: { companyId_periodKey: { companyId, periodKey: ym } },
+    select: { locked: true }
   });
+  const [closingDay, lock] = await Promise.all([closingDayPromise, lockPromise]);
+  const range = periodRangeForYm(ym, closingDay);
   return { ...range, lock, locked: Boolean(lock?.locked) };
 }
 
