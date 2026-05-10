@@ -8,22 +8,35 @@ import { formatDateKey, getPeriodLock } from "@/lib/period-lock";
 import { summarizeMonthlyAttendance } from "@/lib/monthly-attendance";
 
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string } }) {
+  const totalStart = Date.now();
+  console.log("[PERF][admin-monthly] total:start");
+
+  const authStart = Date.now();
   const session = await requireAdmin();
+  console.log("[PERF][admin-monthly] auth-session", Date.now() - authStart, "ms");
+
+  const renderPrepStart = Date.now();
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const selectedDepartment = searchParams.department ?? "all";
+  console.log("[PERF][admin-monthly] render-prep", Date.now() - renderPrepStart, "ms");
 
+  const companyStart = Date.now();
   const period = await getPeriodLock(session.user.companyId, ym);
+  console.log("[PERF][admin-monthly] load-company", Date.now() - companyStart, "ms");
   const start = period.periodStart;
   const end = period.periodEndExclusive;
 
+  const departmentsStart = Date.now();
   const departmentsSource = await prisma.user.findMany({
     where: { companyId: session.user.companyId },
     select: { department: true },
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
   const departments = Array.from(new Set(departmentsSource.map((user) => user.department ?? "-"))).sort();
+  console.log("[PERF][admin-monthly] load-departments", Date.now() - departmentsStart, "ms");
 
+  const usersStart = Date.now();
   const users = await prisma.user.findMany({
     where: {
       companyId: session.user.companyId,
@@ -75,7 +88,9 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     },
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
+  console.log("[PERF][admin-monthly] load-users-with-monthly-data", Date.now() - usersStart, "ms");
 
+  const aggregateStart = Date.now();
   const rows = users.map((user) => {
     const metrics = summarizeMonthlyAttendance({
       logs: user.attendanceLogs,
@@ -126,6 +141,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
       lodgingShiftCount: 0
     }
   );
+  console.log("[PERF][admin-monthly] aggregate-monthly-data", Date.now() - aggregateStart, "ms");
+  console.log("[PERF][admin-monthly] total", Date.now() - totalStart, "ms");
 
   return (
     <main className="min-h-screen bg-slate-100">
