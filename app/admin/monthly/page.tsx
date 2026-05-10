@@ -7,7 +7,7 @@ import { minutesToHHMM } from "@/lib/attendance";
 import { formatDateKey, getPeriodLock } from "@/lib/period-lock";
 import { summarizeMonthlyAttendance } from "@/lib/monthly-attendance";
 
-const pageSize = 20;
+const pageSize = 10;
 
 function parsePage(value?: string) {
   const page = Number(value);
