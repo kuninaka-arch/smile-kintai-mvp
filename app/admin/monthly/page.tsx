@@ -52,21 +52,6 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   const requestedPage = parsePage(searchParams.page);
   console.log("[PERF][admin-monthly]", perfId, "parse-search-params", Date.now() - parseStart, "ms");
 
-  const companyStart = Date.now();
-  const period = await getPeriodLock(session.user.companyId, ym);
-  console.log("[PERF][admin-monthly]", perfId, "load-company", Date.now() - companyStart, "ms");
-  const start = period.periodStart;
-  const end = period.periodEndExclusive;
-
-  const departmentsStart = Date.now();
-  const departmentsSource = await prisma.user.findMany({
-    where: { companyId: session.user.companyId },
-    select: { department: true },
-    orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
-  });
-  const departments = Array.from(new Set(departmentsSource.map((user) => user.department ?? "-"))).sort();
-  console.log("[PERF][admin-monthly]", perfId, "load-departments", Date.now() - departmentsStart, "ms");
-
   const userWhereStart = Date.now();
   const userWhere = {
     companyId: session.user.companyId,
@@ -74,9 +59,32 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
   };
   console.log("[PERF][admin-monthly]", perfId, "build-user-where", Date.now() - userWhereStart, "ms");
 
+  const companyStart = Date.now();
+  const periodPromise = getPeriodLock(session.user.companyId, ym).then((result) => {
+    console.log("[PERF][admin-monthly]", perfId, "load-company", Date.now() - companyStart, "ms");
+    return result;
+  });
+
+  const departmentsStart = Date.now();
+  const departmentsPromise = prisma.user.findMany({
+    where: { companyId: session.user.companyId },
+    select: { department: true },
+    orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
+  }).then((departmentsSource) => {
+    const departments = Array.from(new Set(departmentsSource.map((user) => user.department ?? "-"))).sort();
+    console.log("[PERF][admin-monthly]", perfId, "load-departments", Date.now() - departmentsStart, "ms");
+    return departments;
+  });
+
   const userCountStart = Date.now();
-  const totalCount = await prisma.user.count({ where: userWhere });
-  console.log("[PERF][admin-monthly]", perfId, "load-user-count", Date.now() - userCountStart, "ms");
+  const totalCountPromise = prisma.user.count({ where: userWhere }).then((count) => {
+    console.log("[PERF][admin-monthly]", perfId, "load-user-count", Date.now() - userCountStart, "ms");
+    return count;
+  });
+
+  const [period, departments, totalCount] = await Promise.all([periodPromise, departmentsPromise, totalCountPromise]);
+  const start = period.periodStart;
+  const end = period.periodEndExclusive;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const page = Math.min(requestedPage, totalPages);
 
