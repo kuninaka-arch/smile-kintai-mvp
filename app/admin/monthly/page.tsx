@@ -38,22 +38,23 @@ function groupByUserId<T extends { userId: string }>(items: T[]) {
 
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string; page?: string } }) {
   const totalStart = Date.now();
-  console.log("[PERF][admin-monthly] total:start");
+  const perfId = Math.random().toString(36).slice(2, 8);
+  console.log("[PERF][admin-monthly]", perfId, "total:start");
 
   const authStart = Date.now();
   const session = await requireAdmin();
-  console.log("[PERF][admin-monthly] auth-session", Date.now() - authStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "auth-session", Date.now() - authStart, "ms");
 
-  const renderPrepStart = Date.now();
+  const parseStart = Date.now();
   const now = new Date();
   const ym = searchParams.ym ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const selectedDepartment = searchParams.department ?? "all";
   const requestedPage = parsePage(searchParams.page);
-  console.log("[PERF][admin-monthly] render-prep", Date.now() - renderPrepStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "parse-search-params", Date.now() - parseStart, "ms");
 
   const companyStart = Date.now();
   const period = await getPeriodLock(session.user.companyId, ym);
-  console.log("[PERF][admin-monthly] load-company", Date.now() - companyStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "load-company", Date.now() - companyStart, "ms");
   const start = period.periodStart;
   const end = period.periodEndExclusive;
 
@@ -64,16 +65,22 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
   const departments = Array.from(new Set(departmentsSource.map((user) => user.department ?? "-"))).sort();
-  console.log("[PERF][admin-monthly] load-departments", Date.now() - departmentsStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "load-departments", Date.now() - departmentsStart, "ms");
 
-  const usersStart = Date.now();
+  const userWhereStart = Date.now();
   const userWhere = {
     companyId: session.user.companyId,
     ...(selectedDepartment === "all" ? {} : { department: selectedDepartment === "-" ? null : selectedDepartment })
   };
+  console.log("[PERF][admin-monthly]", perfId, "build-user-where", Date.now() - userWhereStart, "ms");
+
+  const userCountStart = Date.now();
   const totalCount = await prisma.user.count({ where: userWhere });
+  console.log("[PERF][admin-monthly]", perfId, "load-user-count", Date.now() - userCountStart, "ms");
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const page = Math.min(requestedPage, totalPages);
+
+  const usersStart = Date.now();
   const users = await prisma.user.findMany({
     where: userWhere,
     select: {
@@ -85,7 +92,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     take: pageSize,
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
-  console.log("[PERF][admin-monthly] load-users-basic", Date.now() - usersStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "load-users-basic", Date.now() - usersStart, "ms");
 
   const relatedStart = Date.now();
   const userIds = users.map((user) => user.id);
@@ -106,7 +113,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
             },
             orderBy: { stampedAt: "asc" }
           });
-          console.log("[PERF][admin-monthly] monthly-related-attendance-logs", Date.now() - startedAt, "ms");
+          console.log("[PERF][admin-monthly]", perfId, "monthly-related-attendance-logs", Date.now() - startedAt, "ms");
           return result;
         })(),
         (async () => {
@@ -147,7 +154,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
             ...shift,
             workPattern: shift.workPatternId ? workPatternById.get(shift.workPatternId) ?? null : null
           }));
-          console.log("[PERF][admin-monthly] monthly-related-shifts", Date.now() - startedAt, "ms");
+          console.log("[PERF][admin-monthly]", perfId, "monthly-related-shifts", Date.now() - startedAt, "ms");
           return result;
         })(),
         (async () => {
@@ -163,7 +170,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               usedDays: true
             }
           });
-          console.log("[PERF][admin-monthly] monthly-related-paid-leaves", Date.now() - startedAt, "ms");
+          console.log("[PERF][admin-monthly]", perfId, "monthly-related-paid-leaves", Date.now() - startedAt, "ms");
           return result;
         })(),
         (async () => {
@@ -182,12 +189,12 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
               hours: true
             }
           });
-          console.log("[PERF][admin-monthly] monthly-related-leave-requests", Date.now() - startedAt, "ms");
+          console.log("[PERF][admin-monthly]", perfId, "monthly-related-leave-requests", Date.now() - startedAt, "ms");
           return result;
         })()
       ])
     : [[], [], [], []];
-  console.log("[PERF][admin-monthly] load-monthly-related-data", Date.now() - relatedStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "load-monthly-related-data", Date.now() - relatedStart, "ms");
 
   const mapStart = Date.now();
   const logsByUserId = groupByUserId(attendanceLogs);
@@ -202,7 +209,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     ]);
   }
   const leaveRequestsByUserId = groupByUserId(leaveRequests);
-  console.log("[PERF][admin-monthly] map-monthly-related-data", Date.now() - mapStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "map-monthly-related-data", Date.now() - mapStart, "ms");
 
   const aggregateStart = Date.now();
   const rows = users.map((user) => {
@@ -255,8 +262,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
       lodgingShiftCount: 0
     }
   );
-  console.log("[PERF][admin-monthly] aggregate-monthly-data", Date.now() - aggregateStart, "ms");
-  console.log("[PERF][admin-monthly] total", Date.now() - totalStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "aggregate-monthly-data", Date.now() - aggregateStart, "ms");
+  const renderPrepStart = Date.now();
   const pagination = (
     <MonthlyPagination
       totalCount={totalCount}
@@ -266,6 +273,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
       selectedDepartment={selectedDepartment}
     />
   );
+  console.log("[PERF][admin-monthly]", perfId, "render-prep", Date.now() - renderPrepStart, "ms");
+  console.log("[PERF][admin-monthly]", perfId, "total", Date.now() - totalStart, "ms");
 
   return (
     <main className="min-h-screen bg-slate-100">
