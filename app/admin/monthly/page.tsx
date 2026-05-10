@@ -23,6 +23,19 @@ function monthlyPageHref(page: number, ym: string, department: string) {
   return `/admin/monthly?${params.toString()}`;
 }
 
+function groupByUserId<T extends { userId: string }>(items: T[]) {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const list = map.get(item.userId);
+    if (list) {
+      list.push(item);
+    } else {
+      map.set(item.userId, [item]);
+    }
+  }
+  return map;
+}
+
 export default async function MonthlyPage({ searchParams }: { searchParams: { ym?: string; department?: string; page?: string } }) {
   const totalStart = Date.now();
   console.log("[PERF][admin-monthly] total:start");
@@ -66,61 +79,98 @@ export default async function MonthlyPage({ searchParams }: { searchParams: { ym
     select: {
       id: true,
       name: true,
-      department: true,
-      attendanceLogs: {
-        where: { stampedAt: { gte: start, lt: end } },
-        select: {
-          type: true,
-          stampedAt: true
-        },
-        orderBy: { stampedAt: "asc" }
-      },
-      shifts: {
-        where: { workDate: { gte: start, lt: end } },
-        select: {
-          workDate: true,
-          startTime: true,
-          endTime: true,
-          breakMinutes: true,
-          patternCode: true,
-          workPattern: {
-            select: {
-              name: true,
-              isHoliday: true
-            }
-          }
-        },
-        orderBy: { workDate: "asc" }
-      },
-      paidLeaves: {
-        select: {
-          grantedDays: true,
-          usedDays: true
-        }
-      },
-      leaveRequests: {
-        where: { status: "APPROVED", targetDate: { gte: start, lt: end } },
-        select: {
-          targetDate: true,
-          unit: true,
-          hours: true
-        }
-      }
+      department: true
     },
     skip: (page - 1) * pageSize,
     take: pageSize,
     orderBy: [{ department: "asc" }, { displayOrder: "asc" }, { createdAt: "asc" }]
   });
-  console.log("[PERF][admin-monthly] load-users-with-monthly-data", Date.now() - usersStart, "ms");
+  console.log("[PERF][admin-monthly] load-users-basic", Date.now() - usersStart, "ms");
+
+  const relatedStart = Date.now();
+  const userIds = users.map((user) => user.id);
+  const [attendanceLogs, shifts, paidLeaves, leaveRequests] = userIds.length > 0
+    ? await Promise.all([
+        prisma.attendanceLog.findMany({
+          where: {
+            companyId: session.user.companyId,
+            userId: { in: userIds },
+            stampedAt: { gte: start, lt: end }
+          },
+          select: {
+            userId: true,
+            type: true,
+            stampedAt: true
+          },
+          orderBy: { stampedAt: "asc" }
+        }),
+        prisma.shift.findMany({
+          where: {
+            companyId: session.user.companyId,
+            userId: { in: userIds },
+            workDate: { gte: start, lt: end }
+          },
+          select: {
+            userId: true,
+            workDate: true,
+            startTime: true,
+            endTime: true,
+            breakMinutes: true,
+            patternCode: true,
+            workPattern: {
+              select: {
+                name: true,
+                isHoliday: true
+              }
+            }
+          },
+          orderBy: { workDate: "asc" }
+        }),
+        prisma.paidLeave.findMany({
+          where: {
+            companyId: session.user.companyId,
+            userId: { in: userIds }
+          },
+          select: {
+            userId: true,
+            grantedDays: true,
+            usedDays: true
+          }
+        }),
+        prisma.leaveRequest.findMany({
+          where: {
+            companyId: session.user.companyId,
+            userId: { in: userIds },
+            status: "APPROVED",
+            targetDate: { gte: start, lt: end }
+          },
+          select: {
+            userId: true,
+            targetDate: true,
+            unit: true,
+            hours: true
+          },
+          orderBy: { targetDate: "asc" }
+        })
+      ])
+    : [[], [], [], []];
+  console.log("[PERF][admin-monthly] load-monthly-related-data", Date.now() - relatedStart, "ms");
+
+  const mapStart = Date.now();
+  const logsByUserId = groupByUserId(attendanceLogs);
+  const shiftsByUserId = groupByUserId(shifts);
+  const paidLeavesByUserId = groupByUserId(paidLeaves);
+  const leaveRequestsByUserId = groupByUserId(leaveRequests);
+  console.log("[PERF][admin-monthly] map-monthly-related-data", Date.now() - mapStart, "ms");
 
   const aggregateStart = Date.now();
   const rows = users.map((user) => {
     const metrics = summarizeMonthlyAttendance({
-      logs: user.attendanceLogs,
-      shifts: user.shifts,
-      leaves: user.leaveRequests
+      logs: logsByUserId.get(user.id) ?? [],
+      shifts: shiftsByUserId.get(user.id) ?? [],
+      leaves: leaveRequestsByUserId.get(user.id) ?? []
     });
-    const leave = user.paidLeaves[0];
+    const leave = paidLeavesByUserId.get(user.id)?.[0];
 
     return {
       user,
